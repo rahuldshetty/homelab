@@ -1,0 +1,27 @@
+# Dashboard/API on the loopback-only `dashboard` entrypoint (../traefik.yml).
+# The UI answers on /traefik/; the API stays on /api, which is what the UI's
+# own JS and scripts/stack.sh call. Anything else -- `/` in particular -- is a
+# 404 instead of the 301 to the dashboard that `api.insecure` produced.
+http:
+  routers:
+    dashboard:
+      entryPoints: [dashboard]
+      rule: "PathPrefix(`/traefik`) || PathPrefix(`/api`)"
+      service: api@internal
+      middlewares: [traefik-slash, traefik-rewrite]
+
+  middlewares:
+    # `/traefik` is not a route of the dashboard's own handler, which knows
+    # /dashboard/... only and whose routes have no trailing-slash redirect.
+    traefik-slash:
+      redirectRegex:
+        regex: "^(.*)/traefik$"
+        replacement: "${1}/traefik/"
+        permanent: true
+
+    # Map the public prefix onto the dashboard handler's own paths, e.g.
+    # /traefik/assets/... -> /dashboard/assets/... .
+    traefik-rewrite:
+      replacePathRegex:
+        regex: "^/traefik(.*)"
+        replacement: "/dashboard$1"

@@ -8,8 +8,9 @@ accessLog: {}
 
 api:
   dashboard: true
-  # Dashboard/API on :8080, published to 127.0.0.1 only, with no auth there.
-  insecure: true
+  # No `insecure: true`: it also registers a built-in router for `/` that 301s
+  # to the dashboard. The `dashboard` entrypoint plus the router in
+  # dynamic/dashboard.yml serve only /traefik (the UI) and /api, nothing else.
 
 entryPoints:
   web:
@@ -21,6 +22,10 @@ entryPoints:
           scheme: https
   websecure:
     address: ":443"
+  # Dashboard/API, published to 127.0.0.1 only by ../traefik.container; no auth
+  # beyond that. Routed by dynamic/dashboard.yml.
+  dashboard:
+    address: ":8080"
 
 providers:
   docker:

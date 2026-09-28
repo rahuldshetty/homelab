@@ -296,7 +296,7 @@ cmd_status() {
   printf '%-9s %-32s %s\n' 'probe' 'api /api/overview want 200' "$api"
 
   echo
-  info 'dashboard: http://127.0.0.1:8080/dashboard/ (or: ssh -N -L 8080:127.0.0.1:8080 rmpc)'
+  info 'dashboard: http://127.0.0.1:8080/traefik/ (or: ssh -N -L 8080:127.0.0.1:8080 rmpc)'
   [[ "$api" != '200' ]] && info 'not serving: scripts/stack.sh logs traefik.service'
   return 0
 }
