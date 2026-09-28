@@ -1,0 +1,9 @@
+[Network]
+NetworkName=media
+
+[Service]
+# Generated as a oneshot; without this it reports "dead" after running.
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target

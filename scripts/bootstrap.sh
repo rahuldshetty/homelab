@@ -1,20 +1,12 @@
 #!/usr/bin/env bash
-# Host bootstrap for the rmpc service stack: repo skeleton, user linger, podman API socket.
-#
-# Idempotent. Run as the target user -- no sudo needed:
-# `loginctl enable-linger $USER` is permitted by polkit for your own account.
+# Host bootstrap: repo skeleton, user linger, podman API socket.
+# Idempotent, no sudo needed.
 #
 #   scripts/bootstrap.sh           apply
 #   scripts/bootstrap.sh --check   verify only, change nothing
 #
-# Why linger: rootless units run under the per-user systemd manager, which is
-# torn down when the user's last session ends. On a headless box that means
-# "works until I log out". Linger keeps that manager -- and therefore every
-# Quadlet unit in $QUADLET_DIR -- running across logout and reboot.
-#
-# Why the API socket: the reverse proxy discovers services over the Podman
-# Docker-compatible API. It is enabled at boot by default; this makes sure it
-# is actually active and reachable.
+# Linger keeps the per-user systemd manager -- and every Quadlet unit with it --
+# alive after logout; the API socket is what the proxy discovers services on.
 
 set -euo pipefail
 
@@ -24,7 +16,7 @@ USER_ID="$(id -u)"
 QUADLET_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd"
 SOCKET_PATH="/run/user/${USER_ID}/podman/podman.sock"
 
-SKELETON=(apps traefik docs scripts)
+SKELETON=(apps docs scripts)
 
 usage() {
   printf 'usage: %s [--check]\n' "${0##*/}" >&2
@@ -50,8 +42,7 @@ else
 fi
 echo
 
-# Non-login shells (ssh, cron, systemd-run) do not export these, and every
-# `systemctl --user` call below needs them.
+# Needed by every `systemctl --user` call; absent in non-login shells.
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/${USER_ID}}"
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
 

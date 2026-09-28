@@ -1,0 +1,39 @@
+[Unit]
+Description=Traefik reverse proxy
+
+[Container]
+ContainerName=traefik
+Image=docker.io/library/traefik:v3.7.13
+Network=media.network
+# <1024 needs net.ipv4.ip_unprivileged_port_start<=80; `check` verifies it.
+PublishPort=80:80
+PublishPort=443:443
+# Dashboard/API, loopback only.
+PublishPort=127.0.0.1:8080:8080
+# Directory, not files: an editor replacing an inode would orphan a file mount.
+Volume=%h/Documents/minipc/apps/traefik/config:/etc/traefik:ro,Z
+# type=bind fails loudly if the socket is missing; -v would create a directory.
+Mount=type=bind,source=%t/podman/podman.sock,destination=/run/podman/podman.sock,ro
+# Tailscale certificate resolver asks the local tailscaled for its cert.
+Mount=type=bind,source=/run/tailscale,destination=/run/tailscale,ro
+# Required, and measured: the mounted sockets carry host types (user_tmp_t,
+# var_run_t) that container_t cannot connect to, and socket files cannot be
+# :Z-relabelled. Removing this breaks discovery. Consequence: this container
+# runs as spc_t, i.e. unconfined -- see the socket mount above for why it holds
+# the one real privilege in this stack.
+SecurityLabelDisable=true
+ReadOnly=true
+ReadOnlyTmpfs=true
+NoNewPrivileges=true
+DropCapability=all
+# DropCapability=all removed this; needed to bind :80/:443.
+AddCapability=CAP_NET_BIND_SERVICE
+Memory=256m
+
+[Service]
+Restart=always
+# A cold image pull can exceed systemd's 90s start limit.
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,42 @@
+# Static config: changes need `scripts/stack.sh restart traefik.service`.
+# Routing and middlewares live in ./dynamic/ and hot-reload.
+
+log:
+  level: INFO
+
+accessLog: {}
+
+api:
+  dashboard: true
+  # Dashboard/API on :8080, published to 127.0.0.1 only, with no auth there.
+  insecure: true
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    endpoint: "unix:///run/podman/podman.sock"
+    exposedByDefault: false
+    network: media
+  file:
+    directory: "/etc/traefik/dynamic"
+    watch: true
+
+certificatesResolvers:
+  # Certificates come from the local tailscaled (socket mounted in
+  # ../traefik.container). Needs HTTPS enabled for the tailnet, plus
+  # `sudo tailscale set --operator=<user>` for non-root access.
+  tailscale:
+    tailscale: {}
+
+# Routers must reference the resolver and state their ts.net domain: Traefik
+# only derives a domain from Host() or tls.domains[].main.

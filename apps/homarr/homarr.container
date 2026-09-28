@@ -1,0 +1,33 @@
+[Unit]
+Description=Homarr dashboard
+
+[Container]
+ContainerName=homarr
+Image=ghcr.io/homarr-labs/homarr:v1.77.2
+Network=media.network
+# SECRET_ENCRYPTION_KEY, generated with `openssl rand -hex 32`, kept out of git.
+EnvironmentFile=%h/.config/homarr/env
+# Holds the SQLite database at db/db.sqlite; the directory is nocow.
+Volume=%h/media/appdata/homarr:/appdata:Z
+NoNewPrivileges=true
+Memory=1g
+# No ReadOnly/DropCapability=all and no podman socket: this image runs nginx +
+# redis + node, starts as root to su-exec into an app user, and writes outside
+# /appdata. The socket is deliberately absent -- Homarr's docker integration is
+# optional and would hand the dashboard the container API.
+Label=traefik.enable=true
+Label=traefik.http.routers.homarr.rule=PathPrefix(`/`)
+Label=traefik.http.routers.homarr.entrypoints=websecure
+Label=traefik.http.routers.homarr.tls.certResolver=tailscale
+# Stated because this router has no Host() for Traefik to derive it from.
+Label=traefik.http.routers.homarr.tls.domains[0].main=rmpc.tail6e7de3.ts.net
+# Lowest priority: specific path routers (/sonarr) must win over this one.
+Label=traefik.http.routers.homarr.priority=1
+Label=traefik.http.services.homarr.loadbalancer.server.port=7575
+
+[Service]
+Restart=always
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target
