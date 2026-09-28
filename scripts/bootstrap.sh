@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Host bootstrap: repo skeleton, user linger, podman API socket.
-# Idempotent, no sudo needed.
+# Host bootstrap: repo skeleton, user linger, podman API socket, proxy ports.
+# Idempotent. Everything here is user-level except the firewall step, which
+# needs root and will prompt for it.
 #
 #   scripts/bootstrap.sh           apply
 #   scripts/bootstrap.sh --check   verify only, change nothing
@@ -114,6 +115,55 @@ else
   systemctl --user start podman.socket
   note 'started' 'podman.socket'
   changed=$((changed + 1))
+fi
+
+# --- firewall ---------------------------------------------------------------
+
+# Traefik is the only way in from outside this machine, but Fedora's default
+# zone opens ssh and 1025-65535 only, so :80/:443 are dropped for every other
+# host on the LAN and tailnet. unbound interfaces (tailscale0) use the default
+# zone too.
+fw_missing() {
+  local svc port
+  for svc in http https; do
+    case "$svc" in http) port=80 ;; https) port=443 ;; esac
+    firewall-cmd --quiet --query-service="$svc" && continue
+    firewall-cmd --quiet --query-port="${port}/tcp" && continue
+    printf '%s\n' "$svc"
+  done
+}
+
+# firewalld is polkit-mediated: on a desktop session this prompts for the user's
+# password with no sudo involved. Headless that prompt cannot appear, so fall
+# back to sudo: -n first to keep re-runs quiet where it is passwordless, then
+# the interactive prompt when there is a terminal to type into.
+fw_apply() {
+  firewall-cmd "$@" 2>/dev/null && return 0
+  sudo -n firewall-cmd "$@" 2>/dev/null && return 0
+  [[ -t 0 ]] && sudo firewall-cmd "$@"
+}
+
+if ! command -v firewall-cmd >/dev/null 2>&1 || ! systemctl is-active --quiet firewalld; then
+  note 'info' 'firewalld not running: :80/:443 left alone'
+else
+  mapfile -t fw_services < <(fw_missing)
+  if (( ${#fw_services[@]} == 0 )); then
+    note 'ok' "zone $(firewall-cmd --get-default-zone) allows http https"
+  else
+    fw_args=()
+    for svc in "${fw_services[@]}"; do fw_args+=(--add-service="$svc"); done
+    if (( CHECK_ONLY )); then
+      note 'MISSING' "zone $(firewall-cmd --get-default-zone) blocks ${fw_services[*]}"
+      failed=1
+    elif fw_apply --permanent "${fw_args[@]}" && fw_apply --reload; then
+      note 'opened' "zone $(firewall-cmd --get-default-zone): ${fw_services[*]}"
+      changed=$((changed + 1))
+    else
+      note 'FAIL' "could not reach root to open ${fw_services[*]} -- run:"
+      note '' "  sudo firewall-cmd --permanent ${fw_args[*]} && sudo firewall-cmd --reload"
+      failed=1
+    fi
+  fi
 fi
 
 # --- verification -----------------------------------------------------------

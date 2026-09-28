@@ -1,0 +1,53 @@
+[Unit]
+Description=qBittorrent
+
+[Container]
+ContainerName=qbittorrent
+Image=lscr.io/linuxserver/qbittorrent:5.2.3_v2.0.15-ls478
+Network=media.network
+# LSIO's init starts as root in-container, chowns /config and /downloads to abc
+# and drops to it. This maps container uid/gid 1000 -- what PUID/PGID below make
+# abc -- onto the host user, so downloads stay owned by us instead of a subuid.
+UserNS=keep-id:uid=1000,gid=1000
+Environment=PUID=1000
+Environment=PGID=1000
+Environment=TZ=Asia/Kolkata
+# WebUI stays container-internal; Traefik's service label points at this port.
+Environment=WEBUI_PORT=8080
+# Must equal the two PublishPort lines below, or peers knock on a closed door.
+Environment=TORRENTING_PORT=6881
+# State and downloads; both nocow, see setup.sh.
+Volume=%h/media/appdata/qbittorrent:/config:Z
+Volume=%h/media/downloads:/downloads:Z
+# WebUI is not published: Traefik reaches :8080 over media.network. The peer
+# port is, or the client stays passive -- `setup.sh` checks the firewall for it.
+PublishPort=6881:6881
+PublishPort=6881:6881/udp
+NoNewPrivileges=true
+Memory=2g
+# No ReadOnly/DropCapability=all: the s6 init chowns the volumes and setuid's to
+# abc, so it needs CAP_CHOWN/CAP_SETUID/CAP_SETGID inside the user namespace.
+Label=traefik.enable=true
+Label=traefik.http.routers.qbittorrent.rule=PathPrefix(`/qbit`)
+Label=traefik.http.routers.qbittorrent.entrypoints=websecure
+Label=traefik.http.routers.qbittorrent.tls.certResolver=tailscale
+# Stated because this router has no Host() for Traefik to derive it from.
+Label=traefik.http.routers.qbittorrent.tls.domains[0].main=rmpc.tail6e7de3.ts.net
+Label=traefik.http.routers.qbittorrent.middlewares=qbittorrent-slash,qbittorrent-strip
+# qBittorrent cannot be told about a path prefix and its pages use relative
+# URLs, so the browser has to land on /qbit/ and Traefik has to cut the prefix.
+# Both `$$` are literal `$` by the time podman sees them: systemd eats one when
+# it runs the generated unit.
+Label=traefik.http.middlewares.qbittorrent-slash.redirectregex.regex=^(.*)/qbit$$
+Label=traefik.http.middlewares.qbittorrent-slash.redirectregex.replacement=$$1/qbit/
+Label=traefik.http.middlewares.qbittorrent-slash.redirectregex.permanent=true
+Label=traefik.http.middlewares.qbittorrent-strip.stripprefix.prefixes=/qbit
+Label=traefik.http.services.qbittorrent.loadbalancer.server.port=8080
+
+[Service]
+Restart=always
+# A cold image pull can exceed systemd's 90s start limit.
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target
