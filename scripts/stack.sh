@@ -264,11 +264,13 @@ cmd_install() {
 }
 
 cmd_status() {
-  local s f routers api http80 https443 names=() filters=()
+  local s f routers api http80 https443 state names=() filters=() inactive=()
 
   info "scope: ${TARGET:-whole stack}"
   for s in "${SERVICES[@]}"; do
-    printf '%-9s %-26s %s\n' 'unit' "$s" "$(systemctl --user is-active "$s" 2>/dev/null || true)"
+    state="$(systemctl --user is-active "$s" 2>/dev/null || true)"
+    printf '%-9s %-26s %s\n' 'unit' "$s" "$state"
+    [[ "$state" == 'active' ]] || inactive+=("$s")
   done
 
   for f in "${CONTAINERS[@]}"; do
@@ -298,6 +300,14 @@ cmd_status() {
   echo
   info 'dashboard: http://127.0.0.1:8080/traefik/ (or: ssh -N -L 8080:127.0.0.1:8080 rmpc)'
   [[ "$api" != '200' ]] && info 'not serving: scripts/stack.sh logs traefik.service'
+  if (( ${#inactive[@]} )); then
+    info "not active: ${inactive[*]}"
+    if (( ${#inactive[@]} == 1 )); then
+      info "why: scripts/stack.sh logs ${inactive[0]}"
+    else
+      info 'why: scripts/stack.sh logs'
+    fi
+  fi
   return 0
 }
 

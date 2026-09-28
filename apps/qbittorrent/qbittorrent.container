@@ -5,12 +5,16 @@ Description=qBittorrent
 ContainerName=qbittorrent
 Image=lscr.io/linuxserver/qbittorrent:5.2.3_v2.0.15-ls478
 Network=media.network
-# LSIO's init starts as root in-container, chowns /config and /downloads to abc
-# and drops to it. This maps container uid/gid 1000 -- what PUID/PGID below make
-# abc -- onto the host user, so downloads stay owned by us instead of a subuid.
-UserNS=keep-id:uid=1000,gid=1000
-Environment=PUID=1000
-Environment=PGID=1000
+# Rootless podman maps container root onto the host user, so the app has to run
+# as root inside for downloads and state to stay owned by us. LSIO's init drops
+# to `abc`, hence PUID/PGID=0; the image's s6 also needs to stay root so it can
+# own /run and chown the mounts. Same model as homarr: nothing here is root on
+# the host, rootless podman is the boundary.
+#
+# LSIO's non-root mode would be nicer, but s6 then demands /run be owned by that
+# uid, and podman's --tmpfs has no uid= option to arrange it.
+Environment=PUID=0
+Environment=PGID=0
 Environment=TZ=Asia/Kolkata
 # WebUI stays container-internal; Traefik's service label points at this port.
 Environment=WEBUI_PORT=8080
