@@ -207,7 +207,7 @@ wait_for_routers() {
   for i in {1..20}; do
     # `|| true`: curl fails while Traefik is restarting, and pipefail + set -e
     # would otherwise abort the script instead of retrying.
-    n="$(curl -s --max-time 3 http://127.0.0.1:8080/api/http/routers 2>/dev/null \
+    n="$(curl -s --max-time 3 http://127.0.0.1:8080/traefik/api/http/routers 2>/dev/null \
       | grep -o '"name":"[^"]*@docker"' | wc -l || true)"
     (( n > 0 )) && { ok "Traefik discovered ${n} labelled router(s)"; return 0; }
     sleep 0.5
@@ -282,7 +282,7 @@ cmd_status() {
 
   # Traefik's live router table: the fastest way to see whether a container's
   # labels produced a route.
-  routers="$(curl -s --max-time 5 http://127.0.0.1:8080/api/http/routers 2>/dev/null \
+  routers="$(curl -s --max-time 5 http://127.0.0.1:8080/traefik/api/http/routers 2>/dev/null \
     | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | sort | tr '\n' ' ' || true)"
   echo
   [[ -n "$routers" ]] && printf '%-9s %s\n' 'routers' "$routers" \
@@ -290,10 +290,10 @@ cmd_status() {
 
   http80="$(http_code "http://127.0.0.1/")"
   https443="$(http_code -k "https://127.0.0.1/")"
-  api="$(http_code "http://127.0.0.1:8080/api/overview")"
+  api="$(http_code "http://127.0.0.1:8080/traefik/api/overview")"
   printf '%-9s %-32s %s\n' 'probe' 'http://127.0.0.1/ want 301' "$http80"
   printf '%-9s %-32s %s\n' 'probe' 'https://127.0.0.1/ want non-000' "$https443"
-  printf '%-9s %-32s %s\n' 'probe' 'api /api/overview want 200' "$api"
+  printf '%-9s %-32s %s\n' 'probe' 'api /traefik/api/overview want 200' "$api"
 
   echo
   info 'dashboard: http://127.0.0.1:8080/traefik/ (or: ssh -N -L 8080:127.0.0.1:8080 rmpc)'

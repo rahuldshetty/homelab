@@ -8,9 +8,11 @@ accessLog: {}
 
 api:
   dashboard: true
-  # No `insecure: true`: it also registers a built-in router for `/` that 301s
-  # to the dashboard. The `dashboard` entrypoint plus the router in
-  # dynamic/dashboard.yml serve only /traefik (the UI) and /api, nothing else.
+  # UI and API both live under this prefix: the ts.net host is shared with
+  # Homarr, which owns /api/* (its next-auth endpoints). UI at /traefik/,
+  # API at /traefik/api/; routed by dynamic/dashboard.yml. `insecure: true` is
+  # gone -- it injects a `/` -> dashboard 301 and is incompatible with this.
+  basePath: /traefik
 
 entryPoints:
   web:

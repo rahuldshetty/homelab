@@ -1,27 +1,59 @@
-# Dashboard/API on the loopback-only `dashboard` entrypoint (../traefik.yml).
-# The UI answers on /traefik/; the API stays on /api, which is what the UI's
-# own JS and scripts/stack.sh call. Anything else -- `/` in particular -- is a
-# 404 instead of the 301 to the dashboard that `api.insecure` produced.
+# Traefik's own UI and API, under the /traefik prefix set by `api.basePath`
+# (../traefik.yml): loopback `dashboard` entrypoint and tailnet `websecure` one.
+# Nothing else -- `/` in particular -- is routed: the 301 to the dashboard that
+# `api.insecure` produced is gone on purpose.
+#
+# Two router sets because `tls:` drops a router from plain-HTTP entrypoints:
+# the tailnet set terminates with the tailscale resolver, the loopback one has
+# no TLS at all.
 http:
   routers:
-    dashboard:
+    # Longest rule wins the default (rule-length) priority, so /traefik/api/*
+    # lands here instead of going through the UI rewrite below.
+    traefik-api:
       entryPoints: [dashboard]
-      rule: "PathPrefix(`/traefik`) || PathPrefix(`/api`)"
+      rule: "PathPrefix(`/traefik/api`)"
       service: api@internal
-      middlewares: [traefik-slash, traefik-rewrite]
+
+    traefik-ui:
+      entryPoints: [dashboard]
+      rule: "PathPrefix(`/traefik`)"
+      service: api@internal
+      middlewares: [traefik-slash, traefik-ui-rewrite]
+
+    traefik-api-tailnet:
+      entryPoints: [websecure]
+      rule: "PathPrefix(`/traefik/api`)"
+      service: api@internal
+      tls:
+        certResolver: tailscale
+        domains:
+          - main: rmpc.tail6e7de3.ts.net
+
+    traefik-ui-tailnet:
+      entryPoints: [websecure]
+      rule: "PathPrefix(`/traefik`)"
+      service: api@internal
+      middlewares: [traefik-slash, traefik-ui-rewrite]
+      tls:
+        certResolver: tailscale
+        domains:
+          - main: rmpc.tail6e7de3.ts.net
 
   middlewares:
-    # `/traefik` is not a route of the dashboard's own handler, which knows
-    # /dashboard/... only and whose routes have no trailing-slash redirect.
+    # `/traefik` is not a route of the dashboard handler (which serves
+    # /traefik/dashboard/...) and nothing redirects to the slash for us. The
+    # optional query group keeps e.g. /traefik?tab=x intact across the 301.
     traefik-slash:
       redirectRegex:
-        regex: "^(.*)/traefik$"
-        replacement: "${1}/traefik/"
+        regex: '^(.*)/traefik(\?.*)?$'
+        replacement: "${1}/traefik/${2}"
         permanent: true
 
-    # Map the public prefix onto the dashboard handler's own paths, e.g.
-    # /traefik/assets/... -> /dashboard/assets/... .
-    traefik-rewrite:
+    # The handler knows only its own /traefik/dashboard/... paths, and the UI
+    # references its assets relatively: /traefik/assets/... has to reach
+    # /traefik/dashboard/assets/....
+    traefik-ui-rewrite:
       replacePathRegex:
-        regex: "^/traefik(.*)"
-        replacement: "/dashboard$1"
+        regex: "^/traefik(/.*)?$"
+        replacement: "/traefik/dashboard${1}"
