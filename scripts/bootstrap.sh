@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# Host bootstrap for the rmpc service stack: repo skeleton, user linger, podman API socket.
+#
+# Idempotent. Run as the target user -- no sudo needed:
+# `loginctl enable-linger $USER` is permitted by polkit for your own account.
+#
+#   scripts/bootstrap.sh           apply
+#   scripts/bootstrap.sh --check   verify only, change nothing
+#
+# Why linger: rootless units run under the per-user systemd manager, which is
+# torn down when the user's last session ends. On a headless box that means
+# "works until I log out". Linger keeps that manager -- and therefore every
+# Quadlet unit in $QUADLET_DIR -- running across logout and reboot.
+#
+# Why the API socket: the reverse proxy discovers services over the Podman
+# Docker-compatible API. It is enabled at boot by default; this makes sure it
+# is actually active and reachable.
+
+set -euo pipefail
+
+REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+USER_NAME="$(id -un)"
+USER_ID="$(id -u)"
+QUADLET_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd"
+SOCKET_PATH="/run/user/${USER_ID}/podman/podman.sock"
+
+SKELETON=(apps traefik docs scripts)
+
+usage() {
+  printf 'usage: %s [--check]\n' "${0##*/}" >&2
+  exit 2
+}
+
+CHECK_ONLY=0
+case "${1:-}" in
+  '') ;;
+  --check) CHECK_ONLY=1 ;;
+  *) usage ;;
+esac
+[[ $# -le 1 ]] || usage
+
+changed=0
+failed=0
+note() { printf '%-9s %s\n' "$1" "$2"; }
+
+if (( CHECK_ONLY )); then
+  note 'MODE' 'check only -- nothing will be modified'
+else
+  note 'MODE' "applying as ${USER_NAME} (uid ${USER_ID})"
+fi
+echo
+
+# Non-login shells (ssh, cron, systemd-run) do not export these, and every
+# `systemctl --user` call below needs them.
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/${USER_ID}}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
+
+# --- repo skeleton ----------------------------------------------------------
+
+echo "repo: ${REPO_ROOT}"
+for entry in "${SKELETON[@]}"; do
+  dir="${REPO_ROOT}/${entry}"
+  if [[ -d "$dir" ]]; then
+    note 'ok' "dir ${entry}/"
+  elif (( CHECK_ONLY )); then
+    note 'MISSING' "dir ${entry}/"
+    failed=1
+  else
+    mkdir -p -- "$dir"
+    note 'created' "dir ${entry}/"
+    changed=$((changed + 1))
+  fi
+done
+
+# Quadlet drop-in directory: systemd's generator scans only this path, so units
+# living in the repo (apps/<name>/<name>.container) have to be linked here.
+if [[ -d "$QUADLET_DIR" ]]; then
+  note 'ok' "dir ${QUADLET_DIR}"
+elif (( CHECK_ONLY )); then
+  note 'MISSING' "dir ${QUADLET_DIR}"
+  failed=1
+else
+  mkdir -p -- "$QUADLET_DIR"
+  note 'created' "dir ${QUADLET_DIR}"
+  changed=$((changed + 1))
+fi
+
+# --- linger -----------------------------------------------------------------
+
+echo
+linger_state="$(loginctl show-user "$USER_NAME" -p Linger --value)"
+if [[ "$linger_state" == 'yes' ]]; then
+  note 'ok' "linger enabled for ${USER_NAME}"
+elif (( CHECK_ONLY )); then
+  note 'MISSING' "linger disabled for ${USER_NAME}"
+  failed=1
+else
+  loginctl enable-linger "$USER_NAME"
+  note 'enabled' "linger for ${USER_NAME}"
+  changed=$((changed + 1))
+fi
+
+# --- podman API socket ------------------------------------------------------
+
+case "$(systemctl --user is-enabled podman.socket 2>&1)" in
+  enabled) note 'ok'      'podman.socket enabled' ;;
+  *)       if (( CHECK_ONLY )); then
+             note 'MISSING' 'podman.socket not enabled'
+             failed=1
+           else
+             systemctl --user enable podman.socket
+             note 'enabled' 'podman.socket'
+             changed=$((changed + 1))
+           fi ;;
+esac
+
+if systemctl --user is-active --quiet podman.socket; then
+  note 'ok' 'podman.socket active'
+elif (( CHECK_ONLY )); then
+  note 'MISSING' 'podman.socket not active'
+  failed=1
+else
+  systemctl --user start podman.socket
+  note 'started' 'podman.socket'
+  changed=$((changed + 1))
+fi
+
+# --- verification -----------------------------------------------------------
+
+echo
+if [[ ! -S "$SOCKET_PATH" ]]; then
+  note 'FAIL' "no socket at ${SOCKET_PATH}"
+  failed=1
+elif ! curl -fsS --max-time 5 --unix-socket "$SOCKET_PATH" \
+       http://localhost/_ping >/dev/null 2>&1; then
+  note 'FAIL' "API not answering on ${SOCKET_PATH}"
+  failed=1
+else
+  note 'ok' "API answering on ${SOCKET_PATH}"
+fi
+
+if [[ "$(loginctl show-user "$USER_NAME" -p Linger --value)" == 'yes' ]]; then
+  note 'ok' 'user manager survives logout/reboot'
+else
+  note 'FAIL' 'linger still disabled'
+  failed=1
+fi
+
+echo
+if (( failed )); then
+  note 'FAILED' "${changed} change(s) applied, checks failed"
+  exit 1
+fi
+
+if (( CHECK_ONLY )); then
+  note 'PASS' 'all checks satisfied'
+else
+  note 'DONE' "${changed} change(s) applied"
+fi
