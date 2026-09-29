@@ -1,15 +1,9 @@
-# Traefik's own UI and API, under the /traefik prefix set by `api.basePath`
-# (../traefik.yml). Only the loopback `dashboard` entrypoint is defined here:
-# `/` in particular is not routed -- the 301 to the dashboard that
-# `api.insecure` produced is gone on purpose.
-#
-# The tailnet-facing counterparts (websecure, terminating with the tailscale
-# resolver) live in the generated tailnet.yml, the one place the tailnet name
-# is stated.
+# Traefik's own UI and API under api.basePath (/traefik), loopback only: the
+# tailnet-facing routers live in the generated tailnet.yml. `/` is deliberately
+# unrouted (`api.insecure`'s 301 to the dashboard is not wanted).
 http:
   routers:
-    # Longest rule wins the default (rule-length) priority, so /traefik/api/*
-    # lands here instead of going through the UI rewrite below.
+    # Longer rule wins, so /traefik/api/* bypasses the UI rewrite below.
     traefik-api:
       entryPoints: [dashboard]
       rule: "PathPrefix(`/traefik/api`)"
@@ -22,18 +16,16 @@ http:
       middlewares: [traefik-slash, traefik-ui-rewrite]
 
   middlewares:
-    # `/traefik` is not a route of the dashboard handler (which serves
-    # /traefik/dashboard/...) and nothing redirects to the slash for us. The
-    # optional query group keeps e.g. /traefik?tab=x intact across the 301.
+    # Nothing redirects /traefik to /traefik/; the query group preserves
+    # e.g. /traefik?tab=x across the 301.
     traefik-slash:
       redirectRegex:
         regex: '^(.*)/traefik(\?.*)?$'
         replacement: "${1}/traefik/${2}"
         permanent: true
 
-    # The handler knows only its own /traefik/dashboard/... paths, and the UI
-    # references its assets relatively: /traefik/assets/... has to reach
-    # /traefik/dashboard/assets/....
+    # The handler serves /traefik/dashboard/...; the UI's relative asset paths
+    # need /traefik/assets/... to reach it.
     traefik-ui-rewrite:
       replacePathRegex:
         regex: "^/traefik(/.*)?$"

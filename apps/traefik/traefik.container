@@ -5,22 +5,21 @@ Description=Traefik reverse proxy
 ContainerName=traefik
 Image=docker.io/library/traefik:v3.7.13
 Network=media.network
-# <1024 needs net.ipv4.ip_unprivileged_port_start<=80; `check` verifies it.
+# :80 needs net.ipv4.ip_unprivileged_port_start<=80; `check` verifies it.
 PublishPort=80:80
 PublishPort=443:443
 # Dashboard/API, loopback only.
 PublishPort=127.0.0.1:8080:8080
-# Directory, not files: an editor replacing an inode would orphan a file mount.
+# Directory, not files: replacing an inode would orphan a file mount.
 Volume=%h/Documents/minipc/apps/traefik/config:/etc/traefik:ro,Z
-# type=bind fails loudly if the socket is missing; -v would create a directory.
+# type=bind fails loudly if the socket is missing; -v would make a directory.
 Mount=type=bind,source=%t/podman/podman.sock,destination=/run/podman/podman.sock,ro
-# Tailscale certificate resolver asks the local tailscaled for its cert.
+# The Tailscale cert resolver asks the local tailscaled for certs.
 Mount=type=bind,source=/run/tailscale,destination=/run/tailscale,ro
-# Required, and measured: the mounted sockets carry host types (user_tmp_t,
-# var_run_t) that container_t cannot connect to, and socket files cannot be
-# :Z-relabelled. Removing this breaks discovery. Consequence: this container
-# runs as spc_t, i.e. unconfined -- see the socket mount above for why it holds
-# the one real privilege in this stack.
+# Required, and measured: the mounted sockets carry host SELinux types
+# (user_tmp_t, var_run_t) that container_t cannot connect to, and socket files
+# cannot be :Z-relabelled. Without this, discovery breaks -- this container's
+# one real privilege (it runs unconfined, spc_t).
 SecurityLabelDisable=true
 ReadOnly=true
 ReadOnlyTmpfs=true

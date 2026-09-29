@@ -1,21 +1,12 @@
 #!/usr/bin/env bash
-# Pre-install setup for qBittorrent, run automatically by `stack.sh install qbittorrent`.
+# Pre-install setup for qBittorrent, run by `stack.sh install qbittorrent`.
 #
 #   apps/qbittorrent/setup.sh           apply
 #   apps/qbittorrent/setup.sh --check   verify only, change nothing
 #
-# Creates the two directories the container mounts and turns CoW off on them:
-# on btrfs every downloaded block is otherwise copied on write, which fragments
-# the files being written and again while they are read back for seeding. nocow
-# is fixed at inode creation, so the attribute has to be set before the first
-# file lands.
-#
-# Seeds the config volume with ./qBittorrent.conf: no authentication, WebUI
-# reachable only through Traefik. qBittorrent rewrites that file whenever a
-# preference changes, so it is copied once and then only checked.
-#
-# The torrenting port is checked too: ../qbittorrent.container publishes it, but
-# opening it in the firewall needs root, so this only reports.
+# Creates the mounted directories with CoW off (nocow is fixed at inode
+# creation), seeds ./qBittorrent.conf once (qBittorrent rewrites it after), and
+# reports whether the torrenting port is open (opening it needs root).
 
 set -euo pipefail
 
@@ -86,12 +77,10 @@ nocow_dir "$DOWNLOADS"
 
 # --- config seed ------------------------------------------------------------
 
-# Settings this stack is built on: no authentication anywhere, and a WebUI that
-# works behind a TLS-terminating proxy. The file is not compared as a whole --
-# qBittorrent rewrites it flat on every preference change -- so each key is
-# checked on its own. `0.0.0.0/0` is what makes isAuthNeeded() false for every
-# client; the whitelist is the only thing standing between the WebUI and an
-# open login, hence the tailnet-only router.
+# Settings this stack relies on: no authentication and a WebUI behind a
+# TLS-terminating proxy. qBittorrent rewrites the file, so each key is checked
+# individually rather than the whole file. `0.0.0.0/0` makes isAuthNeeded()
+# false for everyone; the tailnet-only router is what gates the WebUI.
 
 conf_keys() {
   local line
@@ -124,11 +113,10 @@ elif (( CHECK_ONLY )); then
 else
   mkdir -p "$CONF_DIR"
   # qBittorrent's parser has no comment syntax: any "#" line with an "=" in it
-  # becomes a preference key, so the comments are dropped on the way in. The
+  # becomes a preference key, so comments are dropped on the way in. The
   # trusted-proxy list is substituted here rather than seeded verbatim.
-  # X-Forwarded-* is trusted from everywhere: this host is reachable only over
-  # the tailnet and the WebUI is never published, so no untrusted peer can
-  # spoof it. .env QBITTORRENT_TRUSTED_PROXIES overrides the default.
+  # Trust X-Forwarded-* from everywhere: the WebUI is never published and this
+  # host is tailnet-only, so nothing untrusted can spoof it. .env override wins.
   proxies="${QBITTORRENT_TRUSTED_PROXIES:-0.0.0.0/0; ::/0}"
   awk -v proxies="$proxies" '
     /^[[:space:]]*#/ { next }

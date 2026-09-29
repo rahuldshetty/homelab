@@ -1,12 +1,10 @@
-# GENERATED FILE -- do not edit. Edit tailnet.yml.in, then re-run:
-#   scripts/stack.sh setup traefik
+# GENERATED FILE -- edit tailnet.yml.in, then: scripts/stack.sh setup traefik
 #
-# Tailnet-side routers for the Traefik dashboard and API. The ts.net name is
-# substituted from .env TAILNET_DOMAIN, or detected with `tailscale status
-# --json` when that is empty. It is stated here and nowhere else: Traefik's
-# Tailscale resolver fetches the certificate for a router's tls.domains[].main
-# (or a Host() matcher), and every other router serves that certificate from
-# the default TLS store without naming it.
+# Tailnet-side dashboard/API routers. setup.sh substitutes the ts.net name from
+# .env TAILNET_DOMAIN or `tailscale status --json`. This is the one place the
+# name is stated: Traefik's Tailscale resolver fetches the certificate from a
+# router's tls.domains[].main, and every other router serves that certificate
+# from the default TLS store.
 http:
   routers:
     traefik-api-tailnet:

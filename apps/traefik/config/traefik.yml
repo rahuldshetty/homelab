@@ -8,10 +8,8 @@ accessLog: {}
 
 api:
   dashboard: true
-  # UI and API both live under this prefix: the ts.net host is shared with
-  # Homarr, which owns /api/* (its next-auth endpoints). UI at /traefik/,
-  # API at /traefik/api/; routed by dynamic/dashboard.yml. `insecure: true` is
-  # gone -- it injects a `/` -> dashboard 301 and is incompatible with this.
+  # Shared ts.net host -- Homarr owns /api/* -- so the dashboard lives under
+  # /traefik. `insecure: true` is gone: it injected a `/` -> dashboard 301.
   basePath: /traefik
 
 entryPoints:
@@ -24,8 +22,7 @@ entryPoints:
           scheme: https
   websecure:
     address: ":443"
-  # Dashboard/API, published to 127.0.0.1 only by ../traefik.container; no auth
-  # beyond that. Routed by dynamic/dashboard.yml.
+  # Dashboard/API, published to 127.0.0.1 only by ../traefik.container.
   dashboard:
     address: ":8080"
 
@@ -39,13 +36,11 @@ providers:
     watch: true
 
 certificatesResolvers:
-  # Certificates come from the local tailscaled (socket mounted in
-  # ../traefik.container). Needs HTTPS enabled for the tailnet, plus
-  # `sudo tailscale set --operator=<user>` for non-root access.
+  # Certs come from the local tailscaled (socket mounted in ../traefik.container);
+  # needs HTTPS enabled for the tailnet and `tailscale set --operator=<user>`.
   tailscale:
     tailscale: {}
 
-# The resolver fetches a certificate for a router that references it and states
-# a domain (Host() or tls.domains[].main); the generated dynamic/tailnet.yml is
-# the single place that happens. Every other router serves that certificate
-# from the default TLS store without naming the resolver.
+# The resolver fetches a cert for a router that references it and states a
+# domain (Host() or tls.domains[].main) -- see the generated dynamic/tailnet.yml.
+# Other routers serve that cert from the default TLS store.

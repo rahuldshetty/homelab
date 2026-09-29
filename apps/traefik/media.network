@@ -2,7 +2,7 @@
 NetworkName=media
 
 [Service]
-# Generated as a oneshot; without this it reports "dead" after running.
+# Oneshot; keeps the unit active instead of "dead".
 RemainAfterExit=yes
 
 [Install]

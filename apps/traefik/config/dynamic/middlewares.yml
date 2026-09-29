@@ -1,6 +1,4 @@
-# Dynamic config, hot-reloaded. Reference from labels as name@file (label-defined
-# middlewares are @docker; the wrong suffix is the usual error).
-
+# Hot-reloaded. Reference these from labels/routers as name@file.
 http:
   middlewares:
     secure-headers:
@@ -11,7 +9,7 @@ http:
         frameDeny: true # breaks apps that iframe themselves
         referrerPolicy: strict-origin-when-cross-origin
 
-    # Optional per-user gate; create the file first, bcrypt:
+    # Optional per-user gate; seed the file with:
     #   htpasswd -nB admin > apps/traefik/config/dynamic/users.htpasswd
     # admin-auth:
     #   basicAuth:

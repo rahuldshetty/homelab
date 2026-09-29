@@ -5,23 +5,20 @@ Description=Homarr dashboard
 ContainerName=homarr
 Image=ghcr.io/homarr-labs/homarr:v1.77.2
 Network=media.network
-# SECRET_ENCRYPTION_KEY, generated with `openssl rand -hex 32`, kept out of git.
+# Holds SECRET_ENCRYPTION_KEY.
 EnvironmentFile=%h/.config/homarr/env
-# Holds the SQLite database at db/db.sqlite; the directory is nocow.
+# SQLite database lives at /appdata/db/db.sqlite; the directory is nocow.
 Volume=%h/media/appdata/homarr:/appdata:Z
 NoNewPrivileges=true
 Memory=1g
-# No ReadOnly/DropCapability=all and no podman socket: this image runs nginx +
-# redis + node, starts as root to su-exec into an app user, and writes outside
-# /appdata. The socket is deliberately absent -- Homarr's docker integration is
-# optional and would hand the dashboard the container API.
+# No ReadOnly/DropCapability and no podman socket: the image runs nginx + redis
+# + node, starts as root to su-exec into an app user, and writes outside
+# /appdata. The socket is deliberately absent -- Homarr's docker integration
+# would hand the dashboard the container API.
 Label=traefik.enable=true
 Label=traefik.http.routers.homarr.rule=PathPrefix(`/`)
 Label=traefik.http.routers.homarr.entrypoints=websecure
-# TLS with the default store's certificate. The ts.net cert is fetched once, by
-# the Tailscale resolver on the routers in
-# apps/traefik/config/dynamic/tailnet.yml, so the tailnet name is not repeated
-# here and this router carries no certResolver of its own.
+# TLS via the default store's cert, fetched by traefik's tailnet routers.
 Label=traefik.http.routers.homarr.tls=true
 # Lowest priority: specific path routers (/sonarr) must win over this one.
 Label=traefik.http.routers.homarr.priority=1

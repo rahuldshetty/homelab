@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
-# Pre-install setup for Traefik, run automatically by `stack.sh install traefik`.
+# Pre-install setup for Traefik, run by `stack.sh install traefik`.
 #
 #   apps/traefik/setup.sh           apply
 #   apps/traefik/setup.sh --check   verify only, change nothing
 #
-# The Tailscale certificate resolver needs the tailnet name as the
-# tls.domains[].main of a router (see config/dynamic/tailnet.yml.in). That name
-# is machine- and tailnet-specific, so it is resolved here -- from .env
-# TAILNET_DOMAIN, or from `tailscale status --json` -- and rendered into
-# config/dynamic/tailnet.yml. The generated file is gitignored.
+# Resolves the tailnet name the Tailscale resolver needs (see tailnet.yml.in) --
+# from .env TAILNET_DOMAIN or `tailscale status --json` -- and renders
+# config/dynamic/tailnet.yml (gitignored).
 
 set -euo pipefail
 
@@ -78,8 +76,7 @@ else
     bad "${GENERATED#"${REPO_ROOT}"/} is missing or stale -- run: scripts/stack.sh setup traefik"
     failed=1
   else
-    # Atomic replace: Traefik watches this directory and must never read a
-    # half-written file.
+    # Atomic replace: Traefik watches this dir and must not read a partial file.
     tmp="$(mktemp "${GENERATED}.XXXXXX")"
     printf '%s\n' "$rendered" > "$tmp"
     mv "$tmp" "$GENERATED"

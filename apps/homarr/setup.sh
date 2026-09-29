@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
-# Pre-install setup for Homarr, run automatically by `stack.sh install homarr`.
+# Pre-install setup for Homarr, run by `stack.sh install homarr`.
 #
 #   apps/homarr/setup.sh           apply
 #   apps/homarr/setup.sh --check   verify only, change nothing
 #
-# Homarr needs two things before it can run: an appdata directory that is nocow
-# (nocow is fixed at inode creation, so it has to exist before the SQLite
-# database does) and the SECRET_ENCRYPTION_KEY the image refuses to start
-# without. The key is read from the repo-root .env and never generated here, so
-# .env stays the single source of truth.
+# Creates the nocow appdata directory (nocow is fixed at inode creation) and
+# writes SECRET_ENCRYPTION_KEY from the repo-root .env into the image env file.
 
 set -euo pipefail
 
@@ -77,9 +74,8 @@ if [[ ! "$key" =~ ^[0-9a-f]{64}$ ]]; then
   note 'then put that line into .env'
   failed=1
 elif [[ -f "$ENV_FILE" ]] && grep -q "^${KEY}=" "$ENV_FILE"; then
-  # .env is the source of truth, so this file is derived from it. A previous
-  # value is kept aside rather than discarded: if Homarr already stored
-  # credentials, the old key is the only way back to them.
+  # Derived from .env. The previous key is kept as .bak: it is the only way
+  # back into credentials Homarr already encrypted.
   existing="$(sed -n "s/^${KEY}=//p" "$ENV_FILE" | head -n1)"
   if [[ "$existing" == "$key" ]]; then
     ok "${ENV_FILE} matches .env"

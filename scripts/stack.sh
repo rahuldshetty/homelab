@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 # Deploy every app under apps/ as systemd user services via Quadlet.
-# Units cannot be `systemctl enable`d: persistence comes from
-# `[Install] WantedBy=default.target`, applied on `daemon-reload`.
-#
-# Most commands take an optional app name (a directory under apps/) to scope
-# them to that app alone.
+# Persistence comes from [Install] WantedBy=default.target on daemon-reload,
+# not `systemctl enable`. Commands take an optional app name to scope them.
 
 set -euo pipefail
 
@@ -15,8 +12,7 @@ USER_NAME="$(id -un)"
 USER_ID="$(id -u)"
 API_SOCKET="${XDG_RUNTIME_DIR:-/run/user/${USER_ID}}/podman/podman.sock"
 
-# Secrets come from .env at the repo root, copied from .env.sample and
-# gitignored. Exported so per-app setup scripts inherit them.
+# Secrets from the gitignored .env, exported so app setups inherit them.
 DOTENV="${REPO_ROOT}/.env"
 if [[ -f "$DOTENV" ]]; then
   set -a
@@ -54,9 +50,8 @@ selected_apps() {
   { for f in "${NETWORKS[@]}" "${CONTAINERS[@]}"; do dirname "$f"; done; } | sort -u
 }
 
-# Optional per-app pre-install hook: apps/<app>/setup.sh, idempotent, no sudo.
-# Run before anything is linked or started. Empty argument applies it,
-# --check only verifies.
+# Optional per-app hook apps/<app>/setup.sh, idempotent and no sudo; runs
+# before anything is linked or started. --check only verifies.
 run_setups() {
   local mode="${1:-}" dir rc=0
   while read -r dir; do
@@ -117,8 +112,8 @@ port_prereq() {
   return 1
 }
 
-# A socket unit can be active while its socket file is gone; only a restart
-# recreates the inode, and Traefik bind-mounts that file.
+# The socket file can vanish while the unit stays active; only a restart
+# recreates the inode Traefik bind-mounts.
 ensure_api_socket() {
   if [[ -S "$API_SOCKET" ]]; then
     ok "${API_SOCKET} present"
@@ -200,8 +195,8 @@ cmd_check() {
   return $rc
 }
 
-# Traefik learns about new containers from the API event stream; without this
-# the status below races it and reports a false 404.
+# Traefik learns about containers from the API event stream; without this the
+# status below races it and reports a false 404.
 wait_for_routers() {
   local i n
   for i in {1..20}; do
@@ -222,14 +217,12 @@ cmd_install() {
   check_prereqs || { echo; die 'prerequisites not satisfied -- nothing was changed'; }
 
   echo
-  # Per-app groundwork (directories, secrets) before anything is linked, so a
-  # fresh clone installs without manual steps.
+  # Per-app groundwork before linking, so a fresh clone installs cleanly.
   run_setups || die 'app setup failed -- nothing was installed'
   echo
 
   local f s
-  # Networks are shared plumbing: media.network lives under one app while others
-  # join it, so all of them are always ensured. Only containers are scoped.
+  # Networks are shared plumbing: always ensured. Only containers are scoped.
   for f in "${ALL_NETWORKS[@]}"; do
     ln -sfn "$f" "${UNIT_DIR}/$(basename "$f")"
     did "linked $(basename "$f")"
@@ -247,8 +240,8 @@ cmd_install() {
     systemctl --user start "$s"
     did "started ${s}"
   done
-  # restart, not start: `start` is a no-op on a running unit, so a changed unit
-  # file (new mount, new label) would silently never apply.
+  # restart, not start: start is a no-op on a running unit, so a changed unit
+  # file (new mount, new label) would silently not apply.
   for f in "${CONTAINERS[@]}"; do
     s="$(unit_service "$f")"
     systemctl --user restart "$s"
@@ -282,8 +275,7 @@ cmd_status() {
     podman ps -a "${filters[@]}" --format '{{.Names}} | {{.Status}} | {{.Ports}}' 2>/dev/null || true
   fi
 
-  # Traefik's live router table: the fastest way to see whether a container's
-  # labels produced a route.
+  # Traefik's live router table: did the labels produce a route?
   routers="$(curl -s --max-time 5 http://127.0.0.1:8080/traefik/api/http/routers 2>/dev/null \
     | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | sort | tr '\n' ' ' || true)"
   echo
@@ -324,8 +316,8 @@ cmd_logs() {
 cmd_restart() {
   local arg="${1:-}" s
 
-  # A systemd unit name (e.g. traefik.service) is restarted directly; anything
-  # else is treated as an app name.
+  # A systemd unit name (traefik.service) is restarted directly; anything else
+  # is an app name.
   if [[ -n "$arg" && ! -d "${APPS_DIR}/${arg}" ]]; then
     systemctl --user restart "$arg"
     did "restarted ${arg}"
@@ -353,8 +345,7 @@ cmd_uninstall() {
   local purge="${1:-0}"
   local f s name o other sel kept=()
 
-  # Containers that survive this uninstall, so a shared network is not pulled
-  # out from under them (an app whose network unit vanishes fails to generate).
+  # Containers that survive, so a shared network is not removed under them.
   for other in "${ALL_CONTAINERS[@]}"; do
     sel=0
     for o in "${CONTAINERS[@]}"; do [[ "$o" == "$other" ]] && sel=1; done

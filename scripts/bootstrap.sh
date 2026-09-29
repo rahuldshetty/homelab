@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
 # Host bootstrap: repo skeleton, user linger, podman API socket, proxy ports.
-# Idempotent. Everything here is user-level except the firewall step, which
-# needs root and will prompt for it.
+# Idempotent; everything is user-level except the firewall step, which needs
+# root.
 #
 #   scripts/bootstrap.sh           apply
 #   scripts/bootstrap.sh --check   verify only, change nothing
-#
-# Linger keeps the per-user systemd manager -- and every Quadlet unit with it --
-# alive after logout; the API socket is what the proxy discovers services on.
 
 set -euo pipefail
 
@@ -64,8 +61,7 @@ for entry in "${SKELETON[@]}"; do
   fi
 done
 
-# Quadlet drop-in directory: systemd's generator scans only this path, so units
-# living in the repo (apps/<name>/<name>.container) have to be linked here.
+# Quadlet's generator scans only this path, so repo units are linked here.
 if [[ -d "$QUADLET_DIR" ]]; then
   note 'ok' "dir ${QUADLET_DIR}"
 elif (( CHECK_ONLY )); then
@@ -119,10 +115,8 @@ fi
 
 # --- firewall ---------------------------------------------------------------
 
-# Traefik is the only way in from outside this machine, but Fedora's default
-# zone opens ssh and 1025-65535 only, so :80/:443 are dropped for every other
-# host on the LAN and tailnet. unbound interfaces (tailscale0) use the default
-# zone too.
+# Fedora's default zone opens only ssh and 1025-65535, so :80/:443 are dropped
+# for LAN and tailnet hosts (unbound tailscale0 uses the default zone too).
 fw_missing() {
   local svc port
   for svc in http https; do
@@ -133,10 +127,8 @@ fw_missing() {
   done
 }
 
-# firewalld is polkit-mediated: on a desktop session this prompts for the user's
-# password with no sudo involved. Headless that prompt cannot appear, so fall
-# back to sudo: -n first to keep re-runs quiet where it is passwordless, then
-# the interactive prompt when there is a terminal to type into.
+# firewalld is polkit-mediated (desktop prompt, no sudo); headless falls back
+# to `sudo -n`, then an interactive sudo if a terminal exists.
 fw_apply() {
   firewall-cmd "$@" 2>/dev/null && return 0
   sudo -n firewall-cmd "$@" 2>/dev/null && return 0
