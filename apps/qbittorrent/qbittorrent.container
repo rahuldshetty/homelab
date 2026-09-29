@@ -23,8 +23,10 @@ Environment=TORRENTING_PORT=6881
 # State and downloads; both nocow, see setup.sh.
 Volume=%h/media/appdata/qbittorrent:/config:Z
 Volume=%h/media/downloads:/downloads:Z
-# WebUI is not published: Traefik reaches :8080 over media.network. The peer
-# port is, or the client stays passive -- `setup.sh` checks the firewall for it.
+# WebUI is not published: Traefik reaches :8080 over media.network, and it has
+# no authentication at all (see qBittorrent.conf), so the tailnet is the gate.
+# The peer port is published, or the client stays passive -- `setup.sh` checks
+# the firewall for it.
 PublishPort=6881:6881
 PublishPort=6881:6881/udp
 NoNewPrivileges=true

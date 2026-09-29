@@ -10,6 +10,10 @@
 # is fixed at inode creation, so the attribute has to be set before the first
 # file lands.
 #
+# Seeds the config volume with ./qBittorrent.conf: no authentication, WebUI
+# reachable only through Traefik. qBittorrent rewrites that file whenever a
+# preference changes, so it is copied once and then only checked.
+#
 # The torrenting port is checked too: ../qbittorrent.container publishes it, but
 # opening it in the firewall needs root, so this only reports.
 
@@ -17,6 +21,10 @@ set -euo pipefail
 
 APPDATA="${HOME}/media/appdata/qbittorrent"
 DOWNLOADS="${HOME}/media/downloads"
+# Where the container's /config/qBittorrent/qBittorrent.conf lives on the host.
+CONF_SRC="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/qBittorrent.conf"
+CONF_DIR="${APPDATA}/qBittorrent"
+CONF="${CONF_DIR}/qBittorrent.conf"
 # Must match TORRENTING_PORT and PublishPort in qbittorrent.container.
 PORT=6881
 
@@ -75,6 +83,49 @@ nocow_dir() {
 
 nocow_dir "$APPDATA"
 nocow_dir "$DOWNLOADS"
+
+# --- config seed ------------------------------------------------------------
+
+# Settings this stack is built on: no authentication anywhere, and a WebUI that
+# works behind a TLS-terminating proxy. The file is not compared as a whole --
+# qBittorrent rewrites it flat on every preference change -- so each key is
+# checked on its own. `0.0.0.0/0` is what makes isAuthNeeded() false for every
+# client; the whitelist is the only thing standing between the WebUI and an
+# open login, hence the tailnet-only router.
+conf_keys() {
+  local line
+  for line in \
+    'WebUI\LocalHostAuth=false' \
+    'WebUI\AuthSubnetWhitelistEnabled=true' \
+    'WebUI\CSRFProtection=false' \
+    'WebUI\ReverseProxySupportEnabled=true'
+  do
+    grep -Fxq "$line" "$CONF" || { bad "config missing ${line}"; return 1; }
+  done
+
+  grep -Eq '^WebUI\\AuthSubnetWhitelist=.*0\.0\.0\.0/0.*::/0' "$CONF" \
+    || { bad 'config whitelist does not cover every address'; return 1; }
+}
+
+if [[ -f "$CONF" ]]; then
+  if conf_keys; then
+    ok 'config: unauthenticated, reverse proxy settings present'
+  else
+    note "edit ${CONF}, or delete it and re-run to reseed from ${CONF_SRC}"
+    failed=1
+  fi
+elif (( CHECK_ONLY )); then
+  bad "missing ${CONF} -- run: scripts/stack.sh setup qbittorrent"
+  failed=1
+else
+  mkdir -p "$CONF_DIR"
+  # qBittorrent's parser has no comment syntax: any "#" line with an "=" in it
+  # becomes a preference key, so the comments are dropped on the way in.
+  grep -v '^[[:space:]]*#' "$CONF_SRC" > "$CONF"
+  chmod 0644 "$CONF"
+  did "seeded ${CONF}"
+  changed=$((changed + 1))
+fi
 
 # --- torrenting port --------------------------------------------------------
 
