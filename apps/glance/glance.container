@@ -1,0 +1,41 @@
+[Unit]
+Description=Glance dashboard
+
+[Container]
+ContainerName=glance
+Image=docker.io/glanceapp/glance:v0.8.6
+Network=media.network
+# The clock and any local widget read this.
+Environment=TZ=Asia/Kolkata
+# Config directory, so Glance's hot reload sees edits: a single-file mount would
+# go stale when an editor replaces the inode.
+Volume=%h/Documents/minipc/apps/glance/config:/app/config:ro,Z
+# Container API socket for the docker-containers widget; podman's socket speaks
+# the Docker API.
+Mount=type=bind,source=%t/podman/podman.sock,destination=/run/podman/podman.sock,ro
+# Required: the socket carries host SELinux types container_t cannot connect to
+# and socket files cannot be :Z-relabelled. Cost: this container runs unconfined
+# (spc_t).
+SecurityLabelDisable=true
+NoNewPrivileges=true
+ReadOnly=true
+ReadOnlyTmpfs=true
+DropCapability=all
+Memory=256m
+Label=traefik.enable=true
+Label=traefik.http.routers.glance.rule=PathPrefix(`/`)
+Label=traefik.http.routers.glance.entrypoints=websecure
+# TLS via the default store's cert, fetched by traefik's tailnet routers.
+Label=traefik.http.routers.glance.tls=true
+# Above homarr's 1, so glance owns / if both are ever running; homarr is
+# disabled but kept.
+Label=traefik.http.routers.glance.priority=2
+Label=traefik.http.services.glance.loadbalancer.server.port=8080
+
+[Service]
+Restart=always
+# A cold image pull can exceed systemd's 90s start limit.
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target

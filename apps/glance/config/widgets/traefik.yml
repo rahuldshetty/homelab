@@ -1,0 +1,72 @@
+# Traefik's own API, reached over media.network on the dashboard entrypoint
+# (:8080; the host only publishes it on 127.0.0.1).
+- type: custom-api
+  title: Traefik
+  cache: 15s
+  subrequests:
+    overview:
+      url: http://traefik:8080/traefik/api/overview
+    services:
+      url: http://traefik:8080/traefik/api/http/services
+  template: |
+    {{ $overview := .Subrequest "overview" }}
+    {{ $services := .Subrequest "services" }}
+
+    {{ if and (eq $overview.Response.StatusCode 200) (eq $services.Response.StatusCode 200) }}
+
+      {{ $up := 0 }}
+      {{ $down := 0 }}
+      {{ range $service := $services.JSON.Array "" }}
+        {{ range $status := ($service.Get "serverStatus.@values").Array "" }}
+          {{ if eq ($status.String "") "UP" }}
+            {{ $up = add $up 1 }}
+          {{ else if ne ($status.String "") "" }}
+            {{ $down = add $down 1 }}
+          {{ end }}
+        {{ end }}
+      {{ end }}
+
+      <div class="flex justify-between text-center">
+        <div>
+          <div class="color-highlight size-h3">{{ $overview.JSON.Int "http.services.total" }}</div>
+          <div class="size-h6">SERVICES</div>
+        </div>
+        <div>
+          <div class="color-highlight size-h3">{{ $overview.JSON.Int "http.routers.total" }}</div>
+          <div class="size-h6">ROUTERS</div>
+        </div>
+        <div>
+          <div class="color-highlight size-h3">{{ $up }}</div>
+          <div class="size-h6">UP</div>
+        </div>
+        <div>
+          <div class="color-highlight size-h3">{{ $down }}</div>
+          <div class="size-h6">DOWN</div>
+        </div>
+      </div>
+
+      <div class="flex justify-between text-center" style="margin-top: 12px;">
+        <div>
+          <div class="size-h3">{{ $overview.JSON.Int "http.middlewares.total" }}</div>
+          <div class="size-h6">MIDDLEWARES</div>
+        </div>
+        <div>
+          <div class="size-h3">{{ $overview.JSON.Int "certificates.total" }}</div>
+          <div class="size-h6">CERTS</div>
+        </div>
+        <div>
+          <div class="size-h3">{{ $overview.JSON.Int "http.services.errors" }}</div>
+          <div class="size-h6">ERRORS</div>
+        </div>
+        <div>
+          <div class="size-h3">{{ $overview.JSON.Int "http.services.warnings" }}</div>
+          <div class="size-h6">WARNINGS</div>
+        </div>
+      </div>
+
+    {{ else }}
+      <div class="color-negative text-center">
+        <p>Error fetching Traefik data.</p>
+        <p class="size-sm">Check the dashboard entrypoint on media.network.</p>
+      </div>
+    {{ end }}

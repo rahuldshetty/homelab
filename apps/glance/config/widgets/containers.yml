@@ -1,0 +1,16 @@
+# Container status, read from podman's Docker-compatible API socket.
+- type: docker-containers
+  sock-path: /run/podman/podman.sock
+  containers:
+    traefik:
+      name: Traefik
+      description: Reverse proxy
+      icon: si:traefikproxy
+    qbittorrent:
+      name: qBittorrent
+      description: Torrent client
+      icon: si:qbittorrent
+    glance:
+      name: Glance
+      description: Dashboard
+      icon: di:glance

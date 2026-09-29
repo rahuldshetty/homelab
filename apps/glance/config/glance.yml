@@ -1,0 +1,68 @@
+# Glance dashboard. Mounted read-only by ../glance.container and hot-reloaded on
+# save. No auth on purpose: it only renders read-only data and is reachable over
+# the tailnet (Traefik terminates TLS with the tailscale resolver).
+
+# Vibrant dark: deep indigo background, electric cyan accents.
+theme:
+  background-color: 240 24 11
+  contrast-multiplier: 1.4
+  primary-color: 189 100 58
+  positive-color: 152 90 55
+  negative-color: 348 100 68
+  text-saturation-multiplier: 0.9
+
+server:
+  # Behind Traefik: read X-Forwarded-* for the real client address.
+  proxied: true
+
+pages:
+  - name: Home
+    columns:
+      - size: small
+        widgets:
+          - type: clock
+            hour-format: 24h
+
+          - type: weather
+            location: Karkala, Karnataka, India
+            units: metric
+            hour-format: 24h
+
+          - type: calendar
+            first-day-of-week: monday
+
+      - size: full
+        widgets:
+          - $include: widgets/qbittorrent.yml
+
+          - $include: widgets/qbittorrent-counts.yml
+
+          - type: hacker-news
+            limit: 10
+            collapse-after: 5
+
+      - size: small
+        widgets:
+          - $include: widgets/traefik.yml
+
+          - type: markets
+            markets:
+              - symbol: IBM
+                name: IBM
+              - symbol: NVDA
+                name: NVIDIA
+              - symbol: MSFT
+                name: Microsoft
+              - symbol: GOOG
+                name: Google
+
+          - $include: widgets/containers.yml
+
+          - type: bookmarks
+            groups:
+              - title: Services
+                links:
+                  - title: qBittorrent
+                    url: /qbit/
+                  - title: Traefik
+                    url: /traefik/

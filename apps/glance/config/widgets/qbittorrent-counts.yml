@@ -1,0 +1,66 @@
+# qBittorrent torrent counts, from the standard /api/v2/torrents/info filters.
+- type: custom-api
+  title: Torrents
+  cache: 15s
+  subrequests:
+    downloading:
+      url: http://qbittorrent:8080/api/v2/torrents/info
+      parameters:
+        filter: downloading
+    seeding:
+      url: http://qbittorrent:8080/api/v2/torrents/info
+      parameters:
+        filter: seeding
+    completed:
+      url: http://qbittorrent:8080/api/v2/torrents/info
+      parameters:
+        filter: completed
+    paused:
+      url: http://qbittorrent:8080/api/v2/torrents/info
+      parameters:
+        filter: paused
+    errored:
+      url: http://qbittorrent:8080/api/v2/torrents/info
+      parameters:
+        filter: errored
+  template: |
+    {{ $downloading := .Subrequest "downloading" }}
+    {{ $seeding := .Subrequest "seeding" }}
+    {{ $completed := .Subrequest "completed" }}
+    {{ $paused := .Subrequest "paused" }}
+    {{ $errored := .Subrequest "errored" }}
+
+    {{ if and
+      (eq $downloading.Response.StatusCode 200)
+      (eq $seeding.Response.StatusCode 200)
+      (eq $completed.Response.StatusCode 200)
+      (eq $paused.Response.StatusCode 200)
+      (eq $errored.Response.StatusCode 200) }}
+      <div class="flex justify-between text-center">
+        <div>
+          <div class="color-highlight size-h3">{{ len ($downloading.JSON.Array "") }}</div>
+          <div class="size-h6">DOWNLOADING</div>
+        </div>
+        <div>
+          <div class="color-highlight size-h3">{{ len ($seeding.JSON.Array "") }}</div>
+          <div class="size-h6">SEEDING</div>
+        </div>
+        <div>
+          <div class="color-highlight size-h3">{{ len ($completed.JSON.Array "") }}</div>
+          <div class="size-h6">COMPLETED</div>
+        </div>
+        <div>
+          <div class="color-highlight size-h3">{{ len ($paused.JSON.Array "") }}</div>
+          <div class="size-h6">PAUSED</div>
+        </div>
+        <div>
+          <div class="color-highlight size-h3">{{ len ($errored.JSON.Array "") }}</div>
+          <div class="size-h6">ERRORED</div>
+        </div>
+      </div>
+    {{ else }}
+      <div class="color-negative text-center">
+        <p>Error fetching qBittorrent data.</p>
+        <p class="size-sm">Check URL and authentication bypass settings.</p>
+      </div>
+    {{ end }}
