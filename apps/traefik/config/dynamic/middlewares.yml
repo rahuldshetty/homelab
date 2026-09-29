@@ -11,15 +11,6 @@ http:
         frameDeny: true # breaks apps that iframe themselves
         referrerPolicy: strict-origin-when-cross-origin
 
-    # LAN + tailnet. The /16 covers both subnets DHCP has handed this host.
-    local-only:
-      ipAllowList:
-        sourceRange:
-          - 127.0.0.1/32
-          - 192.168.0.0/16
-          - 100.64.0.0/10
-          - fd7a:115c:a1e0::/48
-
     # Optional per-user gate; create the file first, bcrypt:
     #   htpasswd -nB admin > apps/traefik/config/dynamic/users.htpasswd
     # admin-auth:

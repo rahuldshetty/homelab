@@ -298,7 +298,7 @@ cmd_status() {
   printf '%-9s %-32s %s\n' 'probe' 'api /traefik/api/overview want 200' "$api"
 
   echo
-  info 'dashboard: http://127.0.0.1:8080/traefik/ (or: ssh -N -L 8080:127.0.0.1:8080 rmpc)'
+  info "dashboard: http://127.0.0.1:8080/traefik/ (or: ssh -N -L 8080:127.0.0.1:8080 $(hostname -s))"
   [[ "$api" != '200' ]] && info 'not serving: scripts/stack.sh logs traefik.service'
   if (( ${#inactive[@]} )); then
     info "not active: ${inactive[*]}"

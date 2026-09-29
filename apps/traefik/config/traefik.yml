@@ -45,5 +45,7 @@ certificatesResolvers:
   tailscale:
     tailscale: {}
 
-# Routers must reference the resolver and state their ts.net domain: Traefik
-# only derives a domain from Host() or tls.domains[].main.
+# The resolver fetches a certificate for a router that references it and states
+# a domain (Host() or tls.domains[].main); the generated dynamic/tailnet.yml is
+# the single place that happens. Every other router serves that certificate
+# from the default TLS store without naming the resolver.

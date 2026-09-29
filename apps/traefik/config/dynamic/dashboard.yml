@@ -1,11 +1,11 @@
 # Traefik's own UI and API, under the /traefik prefix set by `api.basePath`
-# (../traefik.yml): loopback `dashboard` entrypoint and tailnet `websecure` one.
-# Nothing else -- `/` in particular -- is routed: the 301 to the dashboard that
+# (../traefik.yml). Only the loopback `dashboard` entrypoint is defined here:
+# `/` in particular is not routed -- the 301 to the dashboard that
 # `api.insecure` produced is gone on purpose.
 #
-# Two router sets because `tls:` drops a router from plain-HTTP entrypoints:
-# the tailnet set terminates with the tailscale resolver, the loopback one has
-# no TLS at all.
+# The tailnet-facing counterparts (websecure, terminating with the tailscale
+# resolver) live in the generated tailnet.yml, the one place the tailnet name
+# is stated.
 http:
   routers:
     # Longest rule wins the default (rule-length) priority, so /traefik/api/*
@@ -20,25 +20,6 @@ http:
       rule: "PathPrefix(`/traefik`)"
       service: api@internal
       middlewares: [traefik-slash, traefik-ui-rewrite]
-
-    traefik-api-tailnet:
-      entryPoints: [websecure]
-      rule: "PathPrefix(`/traefik/api`)"
-      service: api@internal
-      tls:
-        certResolver: tailscale
-        domains:
-          - main: rmpc.tail6e7de3.ts.net
-
-    traefik-ui-tailnet:
-      entryPoints: [websecure]
-      rule: "PathPrefix(`/traefik`)"
-      service: api@internal
-      middlewares: [traefik-slash, traefik-ui-rewrite]
-      tls:
-        certResolver: tailscale
-        domains:
-          - main: rmpc.tail6e7de3.ts.net
 
   middlewares:
     # `/traefik` is not a route of the dashboard handler (which serves

@@ -36,9 +36,11 @@ Memory=2g
 Label=traefik.enable=true
 Label=traefik.http.routers.qbittorrent.rule=PathPrefix(`/qbit`)
 Label=traefik.http.routers.qbittorrent.entrypoints=websecure
-Label=traefik.http.routers.qbittorrent.tls.certResolver=tailscale
-# Stated because this router has no Host() for Traefik to derive it from.
-Label=traefik.http.routers.qbittorrent.tls.domains[0].main=rmpc.tail6e7de3.ts.net
+# TLS with the default store's certificate. The ts.net cert is fetched once, by
+# the Tailscale resolver on the routers in
+# apps/traefik/config/dynamic/tailnet.yml, so the tailnet name is not repeated
+# here and this router carries no certResolver of its own.
+Label=traefik.http.routers.qbittorrent.tls=true
 Label=traefik.http.routers.qbittorrent.middlewares=qbittorrent-slash,qbittorrent-strip
 # qBittorrent cannot be told about a path prefix and its pages use relative
 # URLs, so the browser has to land on /qbit/ and Traefik has to cut the prefix.

@@ -18,9 +18,11 @@ Memory=1g
 Label=traefik.enable=true
 Label=traefik.http.routers.homarr.rule=PathPrefix(`/`)
 Label=traefik.http.routers.homarr.entrypoints=websecure
-Label=traefik.http.routers.homarr.tls.certResolver=tailscale
-# Stated because this router has no Host() for Traefik to derive it from.
-Label=traefik.http.routers.homarr.tls.domains[0].main=rmpc.tail6e7de3.ts.net
+# TLS with the default store's certificate. The ts.net cert is fetched once, by
+# the Tailscale resolver on the routers in
+# apps/traefik/config/dynamic/tailnet.yml, so the tailnet name is not repeated
+# here and this router carries no certResolver of its own.
+Label=traefik.http.routers.homarr.tls=true
 # Lowest priority: specific path routers (/sonarr) must win over this one.
 Label=traefik.http.routers.homarr.priority=1
 Label=traefik.http.services.homarr.loadbalancer.server.port=7575

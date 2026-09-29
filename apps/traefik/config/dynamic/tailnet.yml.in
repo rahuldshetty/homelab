@@ -1,0 +1,29 @@
+# GENERATED FILE -- do not edit. Edit tailnet.yml.in, then re-run:
+#   scripts/stack.sh setup traefik
+#
+# Tailnet-side routers for the Traefik dashboard and API. The ts.net name is
+# substituted from .env TAILNET_DOMAIN, or detected with `tailscale status
+# --json` when that is empty. It is stated here and nowhere else: Traefik's
+# Tailscale resolver fetches the certificate for a router's tls.domains[].main
+# (or a Host() matcher), and every other router serves that certificate from
+# the default TLS store without naming it.
+http:
+  routers:
+    traefik-api-tailnet:
+      entryPoints: [websecure]
+      rule: "PathPrefix(`/traefik/api`)"
+      service: api@internal
+      tls:
+        certResolver: tailscale
+        domains:
+          - main: "@TAILNET_DOMAIN@"
+
+    traefik-ui-tailnet:
+      entryPoints: [websecure]
+      rule: "PathPrefix(`/traefik`)"
+      service: api@internal
+      middlewares: [traefik-slash, traefik-ui-rewrite]
+      tls:
+        certResolver: tailscale
+        domains:
+          - main: "@TAILNET_DOMAIN@"

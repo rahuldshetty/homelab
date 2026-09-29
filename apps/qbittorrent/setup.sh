@@ -92,6 +92,7 @@ nocow_dir "$DOWNLOADS"
 # checked on its own. `0.0.0.0/0` is what makes isAuthNeeded() false for every
 # client; the whitelist is the only thing standing between the WebUI and an
 # open login, hence the tailnet-only router.
+
 conf_keys() {
   local line
   for line in \
@@ -105,6 +106,9 @@ conf_keys() {
 
   grep -Eq '^WebUI\\AuthSubnetWhitelist=.*0\.0\.0\.0/0.*::/0' "$CONF" \
     || { bad 'config whitelist does not cover every address'; return 1; }
+
+  grep -Eq '^WebUI\\TrustedReverseProxiesList="[^"]+"' "$CONF" \
+    || { bad 'config trusts no reverse proxies'; return 1; }
 }
 
 if [[ -f "$CONF" ]]; then
@@ -120,10 +124,22 @@ elif (( CHECK_ONLY )); then
 else
   mkdir -p "$CONF_DIR"
   # qBittorrent's parser has no comment syntax: any "#" line with an "=" in it
-  # becomes a preference key, so the comments are dropped on the way in.
-  grep -v '^[[:space:]]*#' "$CONF_SRC" > "$CONF"
+  # becomes a preference key, so the comments are dropped on the way in. The
+  # trusted-proxy list is substituted here rather than seeded verbatim.
+  # X-Forwarded-* is trusted from everywhere: this host is reachable only over
+  # the tailnet and the WebUI is never published, so no untrusted peer can
+  # spoof it. .env QBITTORRENT_TRUSTED_PROXIES overrides the default.
+  proxies="${QBITTORRENT_TRUSTED_PROXIES:-0.0.0.0/0; ::/0}"
+  awk -v proxies="$proxies" '
+    /^[[:space:]]*#/ { next }
+    /^WebUI\\TrustedReverseProxiesList=/ {
+      print "WebUI\\TrustedReverseProxiesList=\"" proxies "\""
+      next
+    }
+    { print }
+  ' "$CONF_SRC" > "$CONF"
   chmod 0644 "$CONF"
-  did "seeded ${CONF}"
+  did "seeded ${CONF} (trusted proxies: ${proxies})"
   changed=$((changed + 1))
 fi
 
