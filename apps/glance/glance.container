@@ -21,7 +21,7 @@ NoNewPrivileges=true
 ReadOnly=true
 ReadOnlyTmpfs=true
 DropCapability=all
-Memory=256m
+Memory=128m
 Label=traefik.enable=true
 Label=traefik.http.routers.glance.rule=PathPrefix(`/`)
 Label=traefik.http.routers.glance.entrypoints=websecure

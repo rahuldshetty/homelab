@@ -27,7 +27,7 @@ NoNewPrivileges=true
 DropCapability=all
 # DropCapability=all removed this; needed to bind :80/:443.
 AddCapability=CAP_NET_BIND_SERVICE
-Memory=256m
+Memory=384m
 
 [Service]
 Restart=always

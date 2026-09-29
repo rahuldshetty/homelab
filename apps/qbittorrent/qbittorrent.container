@@ -25,7 +25,7 @@ Volume=%h/media/downloads:/downloads:Z
 PublishPort=6881:6881
 PublishPort=6881:6881/udp
 NoNewPrivileges=true
-Memory=2g
+Memory=1g
 # No ReadOnly/DropCapability: s6 chowns the volumes and setuid's to abc.
 Label=traefik.enable=true
 Label=traefik.http.routers.qbittorrent.rule=PathPrefix(`/qbit`)
