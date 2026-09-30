@@ -18,7 +18,8 @@ Environment=WEBUI_PORT=8080
 Environment=TORRENTING_PORT=6881
 # State and downloads, both nocow; see setup.sh.
 Volume=%h/media/appdata/qbittorrent:/config:Z
-Volume=%h/media/downloads:/downloads:Z
+# `:z`, not `:Z`: the Samba share (apps/samba) cannot satisfy :Z's MCS categories.
+Volume=%h/media/downloads:/downloads:z
 # WebUI is not published: Traefik reaches :8080 over media.network and the
 # tailnet is the only gate (no auth, see qBittorrent.conf). The peer port is
 # published; setup.sh checks the firewall for it.

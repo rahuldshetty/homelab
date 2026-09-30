@@ -1,47 +1,49 @@
 # samba
 
-Read-only SMB/CIFS share of the qBittorrent downloads directory for Windows
-clients. Anonymous (guest) access, with every file operation forced to the
-`nobody` user.
+Read-only SMB/CIFS share of the qBittorrent downloads directory, authenticated
+as the local user.
 
 | File | Installed as | Purpose |
 | --- | --- | --- |
-| `smb.conf` | `/etc/samba/smb.conf` | `[downloads]` share, read-only, `force user = nobody` |
-| `smb.service` | `/etc/systemd/system/smb.service` | host-level `smbd` unit |
+| `smb.conf` | `/etc/samba/smb.conf` | `[downloads]` share, read-only, `valid users = rahul` |
 | `setup.sh` | — | idempotent installer / `--check` |
 
 ## Apply
 
 ```sh
 apps/samba/setup.sh --check   # verify, change nothing
-apps/samba/setup.sh           # needs root: config, ACLs, firewall, enable smb
+apps/samba/setup.sh           # needs root: config, Samba account, boolean, firewall, enable smb
 ```
 
-Then browse `\\<host>\downloads` from Windows.
+`setup.sh` prompts once for a Samba password; use that same password from
+Windows. Then browse `\\rmpc\downloads` and log in as `rmpc\rahul`.
 
-## Why this is not a `scripts/stack.sh` app
+## What it does
 
-`stack.sh` deploys rootless **containers** as **user** services. `force user =
-nobody` requires smbd to run as root (CAP_SETUID), and the Samba package ships a
-system unit, so this app is standalone and applied directly.
+Everything is done with packages already on the host — no custom unit, no
+custom SELinux policy, no ACL surgery:
 
-## Requirements it cannot fix itself
+- **Config**: writes `/etc/samba/smb.conf` (backup at `/etc/samba/smb.conf.orig`)
+  and runs the distro's own `smb.service`; an older duplicate
+  `/etc/systemd/system/smb.service` is removed if present.
+- **Account**: `smbpasswd -a rahul`. Windows refuses guest SMB sessions, so an
+  authenticated account is mandatory; the share is not `guest ok`.
+- **SELinux**: enables the stock `samba_export_all_ro` boolean. podman's `:z`
+  mount labels the downloads directory `container_file_t`, which belongs to
+  Samba's `non_security_file_type`, so the stock boolean grants `smbd_t` the
+  read access it needs — no `minipc_samba` module.
+  - Keep the downloads mount on `:z`, never `:Z`: `:Z` adds MCS categories
+    (`s0:cN,cM`) that `smbd`'s `s0` context cannot satisfy.
+- **Firewall**: `firewall-cmd --permanent --add-service=samba` (139/445 tcp).
 
-- **DAC**: `$HOME` and `media/downloads` are `0700`. `setup.sh` grants `nobody`
-  traverse/read with ACLs (including a default ACL so new downloads inherit it).
-- **SELinux**: podman mounts the downloads dir with `:Z`, which labels it
-  `container_file_t`. Under SELinux `enforcing` (`getenforce`), `smbd_t` cannot
-  read that type, so the share will return access-denied. Options:
-  - Label the directory `samba_share_t` and drop `:Z` from the downloads mount in
-    `apps/qbittorrent/qbittorrent.container` (then relabel with
-    `semanage fcontext`/`restorecon`), **or**
-  - keep the podman label and add a small SELinux policy allowing `smbd_t` to
-    read `container_file_t`.
-  `setup.sh` only warns; pick one during review.
-- **Firewall**: allowed by `setup.sh` (`--add-service=samba`, i.e. 139/445 tcp).
+## Verify
 
-## Windows client note
+```sh
+smbclient -L localhost -U rahul    # lists the `downloads` share
+smbclient //localhost/downloads -U rahul -c ls
+```
 
-Modern Windows blocks anonymous SMB by default (insecure guest logons). Either
-enable guest access on the client, or provide credentials by adding a Samba user
-(`smbpasswd -a`) and a `valid users` line. The share as written is anonymous.
+## Windows client
+
+Log in as `rmpc\rahul` with the Samba password. If a cached *guest* session
+fails, clear it first: `net use \\rmpc\downloads /delete`.
