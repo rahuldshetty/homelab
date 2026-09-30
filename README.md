@@ -37,3 +37,16 @@ scripts/stack.sh uninstall [app] [--purge]
 Traefik terminates TLS and routes by path; its dashboard is at `/traefik/`, the
 Glance dashboard at `/`. The tailnet name is detected from Tailscale, not
 hardcoded.
+
+## Samba (host-level)
+
+`apps/samba/` shares `~/media/downloads` read-only over SMB, forcing every access
+to `nobody`. It is neither a container nor a user service (`force user = nobody`
+needs root), so `scripts/stack.sh` does not manage it. Apply it directly:
+
+```sh
+apps/samba/setup.sh --check   # verify, change nothing
+apps/samba/setup.sh           # needs root
+```
+
+See `apps/samba/README.md` for the SELinux caveat.

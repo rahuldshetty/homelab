@@ -1,0 +1,21 @@
+# Standalone (host-level) Samba SMB daemon. Installed by setup.sh at
+# /etc/systemd/system/smb.service, overriding Fedora's vendor unit. smbd must
+# run as root: `force user = nobody` in smb.conf requires CAP_SETUID, so this
+# cannot be a rootless/user service or a Quadlet container.
+[Unit]
+Description=Samba SMB Daemon
+Documentation=man:smbd(8) man:samba(7) man:smb.conf(5)
+Wants=network-online.target
+After=network.target network-online.target
+
+[Service]
+Type=notify
+PIDFile=/run/smbd.pid
+LimitNOFILE=16384
+EnvironmentFile=-/etc/sysconfig/samba
+ExecStart=/usr/bin/smbd --foreground --no-process-group $SMBDOPTIONS
+ExecReload=/bin/kill -HUP $MAINPID
+Environment=KRB5CCNAME=FILE:/run/samba/krb5cc_samba
+
+[Install]
+WantedBy=multi-user.target
