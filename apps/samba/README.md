@@ -46,4 +46,32 @@ smbclient //localhost/downloads -U rahul -c ls
 ## Windows client
 
 Log in as `rmpc\rahul` with the Samba password. If a cached *guest* session
-fails, clear it first: `net use \\rmpc\downloads /delete`.
+fails, clear it first: `net use \\rmpc\ /delete`.
+
+### Important Note
+
+When directly connecting MiniPC over LAN to desktop, I observed this behaviour where due to DHCP on both machine, different IPs were being assigned to each. 
+
+We can make the minipc act as DHCP server by running the following command:
+
+```
+# fetch ethernet interface
+nmcli device status
+
+# Set eno1 to auto-assign IPs:
+sudo nmcli connection modify "Wired connection 1" ipv4.method shared
+
+# restart
+sudo nmcli connection up "Wired connection 1"
+```
+
+You can then connect to the samba shared folder on Windows by using the IP or the machine name as follows:
+```
+\\rmpc.local\
+
+or
+
+# Find IP assigned to ethernet in windows with: ipconfig
+\\10.42.0.118\
+```
+
