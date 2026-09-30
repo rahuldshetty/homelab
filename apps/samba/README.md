@@ -75,3 +75,7 @@ or
 \\10.42.0.118\
 ```
 
+## Reference
+- https://www.reddit.com/r/Bazzite/comments/1nxh465/how_to_set_up_samba_file_sharing_on_bazzite_share/
+- https://opensource.com/article/21/4/share-files-linux-windows
+- https://zentyal.com/news/linux-samba-server
