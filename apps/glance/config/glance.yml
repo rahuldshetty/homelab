@@ -1,8 +1,3 @@
-# Glance dashboard. Mounted read-only by ../glance.container and hot-reloaded on
-# save. No auth on purpose: it only renders read-only data and is reachable over
-# the tailnet (Traefik terminates TLS with the tailscale resolver).
-
-# Vibrant dark: deep indigo background, electric cyan accents.
 theme:
   background-color: 240 24 11
   contrast-multiplier: 1.4
@@ -17,6 +12,19 @@ server:
 
 pages:
   - name: Home
+    head-widgets:
+      - type: markets
+        hide-header: true
+        markets:
+          - symbol: IBM
+            name: IBM
+          - symbol: NVDA
+            name: NVIDIA
+          - symbol: MSFT
+            name: Microsoft
+          - symbol: GOOG
+            name: Google
+
     columns:
       - size: small
         widgets:
@@ -28,34 +36,21 @@ pages:
             units: metric
             hour-format: 24h
 
-          - type: calendar
-            first-day-of-week: monday
-
       - size: full
         widgets:
-          - $include: widgets/qbittorrent.yml
-
-          - $include: widgets/qbittorrent-counts.yml
-
           - type: hacker-news
             limit: 10
             collapse-after: 5
 
       - size: small
         widgets:
-          - $include: widgets/traefik.yml
+          - type: calendar
+            first-day-of-week: monday
 
-          - type: markets
-            markets:
-              - symbol: IBM
-                name: IBM
-              - symbol: NVDA
-                name: NVIDIA
-              - symbol: MSFT
-                name: Microsoft
-              - symbol: GOOG
-                name: Google
-
+  - name: Services
+    columns:
+      - size: small
+        widgets:
           - $include: widgets/containers.yml
 
           - type: bookmarks
@@ -68,3 +63,13 @@ pages:
                     url: /ebooks/
                   - title: Traefik
                     url: /traefik/
+
+      - size: full
+        widgets:
+          - $include: widgets/qbittorrent.yml
+
+          - $include: widgets/qbittorrent-counts.yml
+
+      - size: small
+        widgets:
+          - $include: widgets/traefik.yml
