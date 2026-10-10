@@ -1,11 +1,11 @@
 # samba
 
-Read-only SMB/CIFS share of the qBittorrent downloads directory, authenticated
-as the local user.
+Read-only SMB/CIFS shares of the qBittorrent downloads directory and the Steam
+library, authenticated as the local user.
 
 | File | Installed as | Purpose |
 | --- | --- | --- |
-| `smb.conf` | `/etc/samba/smb.conf` | `[downloads]` share, read-only, `valid users = rahul` |
+| `smb.conf` | `/etc/samba/smb.conf` | `[downloads]` and `[steamapps]` shares, read-only, `valid users = rahul` |
 | `setup.sh` | — | idempotent installer / `--check` |
 
 ## Apply
@@ -16,7 +16,8 @@ apps/samba/setup.sh           # needs root: config, Samba account, boolean, fire
 ```
 
 `setup.sh` prompts once for a Samba password; use that same password from
-Windows. Then browse `\\rmpc\downloads` and log in as `rmpc\rahul`.
+Windows. Then browse `\\rmpc\downloads` or `\\rmpc\steamapps` and log in as
+`rmpc\rahul`.
 
 ## What it does
 
@@ -25,13 +26,16 @@ custom SELinux policy, no ACL surgery:
 
 - **Config**: writes `/etc/samba/smb.conf` (backup at `/etc/samba/smb.conf.orig`)
   and runs the distro's own `smb.service`; an older duplicate
-  `/etc/systemd/system/smb.service` is removed if present.
+  `/etc/systemd/system/smb.service` is removed if present. When the config
+  changes it reloads smbd (`SIGHUP`) so new shares appear without dropping
+  sessions.
 - **Account**: `smbpasswd -a rahul`. Windows refuses guest SMB sessions, so an
   authenticated account is mandatory; the share is not `guest ok`.
 - **SELinux**: enables the stock `samba_export_all_ro` boolean. podman's `:z`
-  mount labels the downloads directory `container_file_t`, which belongs to
-  Samba's `non_security_file_type`, so the stock boolean grants `smbd_t` the
-  read access it needs — no `minipc_samba` module.
+  mount labels the downloads directory `container_file_t`; the Steam library is
+  plain user data (`data_home_t`). Both belong to Samba's
+  `non_security_file_type`, so the stock boolean grants `smbd_t` the read access
+  it needs — no `minipc_samba` module.
   - Keep the downloads mount on `:z`, never `:Z`: `:Z` adds MCS categories
     (`s0:cN,cM`) that `smbd`'s `s0` context cannot satisfy.
 - **Firewall**: `firewall-cmd --permanent --add-service=samba` (139/445 tcp).
@@ -39,8 +43,9 @@ custom SELinux policy, no ACL surgery:
 ## Verify
 
 ```sh
-smbclient -L localhost -U rahul    # lists the `downloads` share
+smbclient -L localhost -U rahul    # lists `downloads` and `steamapps`
 smbclient //localhost/downloads -U rahul -c ls
+smbclient //localhost/steamapps -U rahul -c ls
 ```
 
 ## Windows client

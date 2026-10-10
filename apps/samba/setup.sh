@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Read-only SMB share of the qBittorrent downloads directory. Host-level: the
-# distro's own smb.service runs the daemon and SELinux is handled by the stock
-# `samba_export_all_ro` boolean, so this script only writes smb.conf, creates the
-# Samba account, opens the firewall and enables the unit. See README.md.
+# Read-only SMB shares of the downloads and Steam library dirs. No custom unit:
+# writes smb.conf, creates the Samba account, opens the firewall and enables the
+# stock smb.service. See README.md.
 #
 #   apps/samba/setup.sh           apply (needs root)
 #   apps/samba/setup.sh --check   verify only, change nothing
@@ -24,13 +23,23 @@ else
   RUN_USER="$(id -un)"
   RUN_HOME="$HOME"
 fi
-SHARE_DIR="${RUN_HOME}/media/downloads"
+# Must match the [name] and `path =` stanzas in smb.conf.
+SHARE_NAMES=(downloads steamapps)
+SHARE_DIRS=(
+  "${RUN_HOME}/media/downloads"
+  "${RUN_HOME}/.local/share/Steam/steamapps"
+)
+SHARE_HINTS=(
+  'install qbittorrent first (scripts/stack.sh install qbittorrent)'
+  'launch Steam once so it creates the library'
+)
 
 CHECK_ONLY=0
 [[ "${1:-}" == '--check' ]] && CHECK_ONLY=1
 
 changed=0
 failed=0
+config_changed=0
 ok()   { printf '%-9s %s\n' 'ok'      "$*"; }
 bad()  { printf '%-9s %s\n' 'FAIL'    "$*"; }
 did()  { printf '%-9s %s\n' 'applied' "$*"; }
@@ -44,21 +53,26 @@ as_root() {
 # Read-only probe that never prompts for a password.
 as_root_q() { "$@" 2>/dev/null || sudo -n "$@" 2>/dev/null; }
 
-# --- share directory --------------------------------------------------------
+# --- share directories ------------------------------------------------------
 
-if [[ -d "$SHARE_DIR" ]]; then
-  ok "share dir ${SHARE_DIR}"
-else
-  bad "missing ${SHARE_DIR} -- install qbittorrent first (scripts/stack.sh install qbittorrent)"
-  exit 1
-fi
+for i in "${!SHARE_DIRS[@]}"; do
+  if [[ -d "${SHARE_DIRS[$i]}" ]]; then
+    ok "share dir ${SHARE_DIRS[$i]}"
+  else
+    bad "missing ${SHARE_DIRS[$i]} -- ${SHARE_HINTS[$i]}"
+    failed=1
+  fi
+done
+if (( failed )); then exit 1; fi
 
 # --- config -----------------------------------------------------------------
 
-if ! grep -Fq "path = ${SHARE_DIR}" "$SMB_CONF_SRC"; then
-  bad "${SMB_CONF_SRC} does not point at ${SHARE_DIR}"
-  failed=1
-fi
+for dir in "${SHARE_DIRS[@]}"; do
+  if ! grep -Fq "path = ${dir}" "$SMB_CONF_SRC"; then
+    bad "${SMB_CONF_SRC} does not point at ${dir}"
+    failed=1
+  fi
+done
 
 if [[ -f "$SMB_CONF" ]] && cmp -s "$SMB_CONF_SRC" "$SMB_CONF"; then
   ok "installed ${SMB_CONF}"
@@ -72,6 +86,7 @@ else
   if as_root install -m 0644 "$SMB_CONF_SRC" "$SMB_CONF"; then
     did "installed ${SMB_CONF} (previous kept at ${SMB_CONF}.orig)"
     changed=$((changed + 1))
+    config_changed=1
   else
     bad "could not install ${SMB_CONF} (need root)"
     failed=1
@@ -127,9 +142,8 @@ fi
 
 # --- selinux ----------------------------------------------------------------
 
-# podman labels the downloads volume container_file_t. That type belongs to
-# Samba's `non_security_file_type`, so the stock read-only boolean is all smbd
-# needs -- no custom policy module.
+# downloads is container_file_t, Steam is data_home_t; both are covered by the
+# stock boolean -- no custom policy module.
 if ! getenforce 2>/dev/null | grep -q '^Enforcing$'; then
   note 'SELinux not enforcing: no boolean needed'
 elif [[ "$(getsebool "$SE_BOOL" 2>/dev/null | awk '{print $NF}')" == on ]]; then
@@ -146,13 +160,15 @@ else
 fi
 
 # `:Z` categories (s0:cN,cM) are unsatisfiable by smbd's s0 context; report stale.
-ctx="$(getfattr -n security.selinux --only-values "$SHARE_DIR" 2>/dev/null | tr -d '\0' || true)"
-case "$ctx" in
-  *':c'[0-9]*)
-    note "SELinux: ${SHARE_DIR} still has MCS categories (${ctx#*:})"
-    note 'restart qbittorrent after switching its downloads mount to :z'
-    ;;
-esac
+for dir in "${SHARE_DIRS[@]}"; do
+  ctx="$(getfattr -n security.selinux --only-values "$dir" 2>/dev/null | tr -d '\0' || true)"
+  case "$ctx" in
+    *':c'[0-9]*)
+      note "SELinux: ${dir} still has MCS categories (${ctx#*:})"
+      note 'restart its writer after switching the mount to :z'
+      ;;
+  esac
+done
 
 # --- service ----------------------------------------------------------------
 
@@ -184,6 +200,17 @@ else
   failed=1
 fi
 
+# --- reload -----------------------------------------------------------------
+
+# smbd caches smb.conf; SIGHUP makes new shares appear without dropping sessions.
+if (( config_changed )) && systemctl is-active --quiet smb; then
+  if as_root systemctl reload smb; then
+    did 'reloaded smbd config'
+  else
+    note 'could not reload smbd; the config applies on next restart'
+  fi
+fi
+
 # --- summary ----------------------------------------------------------------
 
 echo
@@ -196,5 +223,7 @@ if (( CHECK_ONLY )); then
   ok 'setup satisfied'
 else
   ok "setup complete (${changed} change(s))"
-  note "connect as ${RUN_USER}: \\\\$(hostname -f)\\downloads  (read-only)"
+  for name in "${SHARE_NAMES[@]}"; do
+    note "share ${name}: \\\\$(hostname -f)\\${name}  (read-only, user ${RUN_USER})"
+  done
 fi

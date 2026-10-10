@@ -40,7 +40,8 @@ hardcoded.
 
 ## Samba (host-level)
 
-`apps/samba/` shares `~/media/downloads` read-only over SMB, authenticated as
+`apps/samba/` shares `~/media/downloads` and the Steam library
+(`~/.local/share/Steam/steamapps`) read-only over SMB, authenticated as
 the local user and backed by the distro's own `smb.service` plus the stock
 `samba_export_all_ro` SELinux boolean. It is neither a container nor a user
 service, so `scripts/stack.sh` does not manage it. Apply it directly:
