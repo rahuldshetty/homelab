@@ -1,0 +1,35 @@
+[Unit]
+Description=Calibre-Web ebook library
+
+[Container]
+ContainerName=calibre-web
+Image=lscr.io/linuxserver/calibre-web:0.6.27-ls404
+Network=media.network
+# Rootless: container root maps to the host user, so PUID/PGID=0 keeps files owned by you.
+Environment=PUID=0
+Environment=PGID=0
+Environment=TZ=Asia/Kolkata
+Volume=%h/media/appdata/calibre-web/config:/config:Z
+Volume=%h/media/appdata/calibre-web/books:/books:Z
+NoNewPrivileges=true
+Memory=1g
+Label=traefik.enable=true
+Label=traefik.http.routers.calibre-web.rule=PathPrefix(`/ebooks`)
+Label=traefik.http.routers.calibre-web.entrypoints=websecure
+Label=traefik.http.routers.calibre-web.tls=true
+# No path-prefix setting: needs both the X-Script-Name header and the strip; `$$` is one `$`.
+Label=traefik.http.routers.calibre-web.middlewares=calibre-web-slash,calibre-web-script,calibre-web-strip
+Label=traefik.http.middlewares.calibre-web-slash.redirectregex.regex=^(.*)/ebooks$$
+Label=traefik.http.middlewares.calibre-web-slash.redirectregex.replacement=$$1/ebooks/
+Label=traefik.http.middlewares.calibre-web-slash.redirectregex.permanent=true
+Label=traefik.http.middlewares.calibre-web-script.headers.customrequestheaders.X-Script-Name=/ebooks
+Label=traefik.http.middlewares.calibre-web-script.headers.customrequestheaders.X-Scheme=https
+Label=traefik.http.middlewares.calibre-web-strip.stripprefix.prefixes=/ebooks
+Label=traefik.http.services.calibre-web.loadbalancer.server.port=8083
+
+[Service]
+Restart=always
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target

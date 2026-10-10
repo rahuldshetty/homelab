@@ -64,5 +64,7 @@ pages:
                 links:
                   - title: qBittorrent
                     url: /qbit/
+                  - title: Calibre-Web
+                    url: /ebooks/
                   - title: Traefik
                     url: /traefik/
