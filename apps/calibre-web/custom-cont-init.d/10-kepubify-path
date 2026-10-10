@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# calibre-web 0.6.27 only accepts kepubify binaries named kepubify-linux-64bit /
+# kepubify-linux-32bit, but this image ships "kepubify" and seeds
+# config_kepubifypath=/usr/bin/kepubify. That path never resolves, so every
+# admin config save aborts with "Kepubify binary not found" and persists nothing
+# (config.save() is skipped). Alias the binary and point the setting at the dir.
+set -euo pipefail
+
+if [[ -x /usr/bin/kepubify ]]; then
+    ln -sf /usr/bin/kepubify /usr/bin/kepubify-linux-64bit
+fi
+
+[[ -f /config/app.db ]] || exit 0
+if [[ "$(sqlite3 /config/app.db 'select config_kepubifypath from settings where id=1')" == '/usr/bin/kepubify' ]]; then
+    sqlite3 /config/app.db "update settings set config_kepubifypath='/usr/bin' where id=1"
+    echo "[kepubify-path] config_kepubifypath -> /usr/bin"
+fi

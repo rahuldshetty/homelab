@@ -11,6 +11,8 @@ Environment=PGID=0
 Environment=TZ=Asia/Kolkata
 Volume=%h/media/appdata/calibre-web/config:/config:Z
 Volume=%h/media/appdata/calibre-web/books:/books:Z
+# LSIO custom-init hook; see custom-cont-init.d/.
+Volume=%h/Documents/minipc/apps/calibre-web/custom-cont-init.d:/custom-cont-init.d:ro,Z
 NoNewPrivileges=true
 Memory=1g
 Label=traefik.enable=true
