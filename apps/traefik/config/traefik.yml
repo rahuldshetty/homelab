@@ -23,11 +23,10 @@ entryPoints:
   websecure:
     address: ":443"
     # Default readTimeout is 60s; a slow upload (ebooks) gets cut mid-body, the
-    # backend sees "unexpected end of file" and Traefik reports 502. 0 disables
-    # the limit, matching Calibre-Web's own server (gevent), which has no cap.
+    # backend sees "unexpected end of file" and Traefik reports 502.
     transport:
       respondingTimeouts:
-        readTimeout: 0
+        readTimeout: 1800
   # Dashboard/API, published to 127.0.0.1 only by ../traefik.container.
   dashboard:
     address: ":8080"
