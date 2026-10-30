@@ -248,7 +248,7 @@ cmd_install() {
     did "restarted ${s}"
   done
 
-  if grep -q 'traefik\.http\.routers\.' "${CONTAINERS[@]}" 2>/dev/null; then
+  if (( ${#CONTAINERS[@]} )) && grep -q 'traefik\.http\.routers\.' "${CONTAINERS[@]}" 2>/dev/null; then
     wait_for_routers
   fi
 
@@ -314,7 +314,7 @@ cmd_logs() {
 }
 
 cmd_restart() {
-  local arg="${1:-}" s
+  local arg="${1:-}" s dep was=()
 
   # A systemd unit name (traefik.service) is restarted directly; anything else
   # is an app name.
@@ -326,6 +326,27 @@ cmd_restart() {
 
   set_scope "$arg"
   for s in "${SERVICES[@]}"; do
+    if [[ "$s" == *-network.service ]]; then
+      # Stopping a network also stops every unit that Requires= it. For a
+      # network-only scope, bring back the dependents that were running.
+      was=()
+      if (( ${#CONTAINERS[@]} == 0 )); then
+        for dep in $(systemctl --user show -p RequiredBy --value "$s" 2>/dev/null || true); do
+          if systemctl --user is-active --quiet "$dep"; then
+            was+=("$dep")
+          fi
+        done
+      fi
+      systemctl --user restart "$s"
+      for dep in "${was[@]}"; do
+        systemctl --user start "$dep" 2>/dev/null || true
+      done
+      did "restarted $s"
+      if (( ${#was[@]} )); then
+        did "restarted ${#was[@]} dependent unit(s)"
+      fi
+      continue
+    fi
     systemctl --user restart "$s"
     did "restarted ${s}"
   done
@@ -343,7 +364,7 @@ cmd_stop() {
 
 cmd_uninstall() {
   local purge="${1:-0}"
-  local f s name o other sel kept=()
+  local f s name o other sel kept=() i
 
   # Containers that survive, so a shared network is not removed under them.
   for other in "${ALL_CONTAINERS[@]}"; do
@@ -352,7 +373,12 @@ cmd_uninstall() {
     (( sel )) || kept+=("$other")
   done
 
-  cmd_stop
+  # Stop selected containers only; a kept shared network must stay up.
+  for (( i=${#CONTAINERS[@]}-1; i>=0; i-- )); do
+    s="$(unit_service "${CONTAINERS[$i]}")"
+    systemctl --user stop "$s" 2>/dev/null || true
+    did "stopped $s"
+  done
 
   for f in "${CONTAINERS[@]}"; do
     name="$(unit_key "$f" ContainerName)"
@@ -363,10 +389,11 @@ cmd_uninstall() {
 
   for f in "${NETWORKS[@]}"; do
     name="$(unit_key "$f" NetworkName)"
-    if grep -q "Network=${name}\.network" "${kept[@]}" 2>/dev/null; then
+    if (( ${#kept[@]} )) && grep -q "Network=${name}\.network" "${kept[@]}" 2>/dev/null; then
       info "keeping $(basename "$f"): another app still joins it"
       continue
     fi
+    systemctl --user stop "$(unit_service "$f")" 2>/dev/null || true
     rm -f "${UNIT_DIR}/$(basename "$f")"
     did "unlinked $(basename "$f")"
   done

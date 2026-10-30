@@ -2,7 +2,8 @@
 
 A small rootless Podman + Quadlet stack behind Traefik, reachable over Tailscale
 only. Apps live in `apps/<name>/` (a `.container` unit plus an optional
-`setup.sh`); `scripts/stack.sh` deploys them as systemd user services.
+`setup.sh`); shared Podman networks live in `apps/networks/`. `scripts/stack.sh`
+deploys both as systemd user services.
 
 <!-- Replace with a real screenshot: docs/glance.png -->
 ![Glance dashboard](docs/glance.png)
@@ -33,6 +34,10 @@ scripts/stack.sh stop [app]
 scripts/stack.sh setup [app]          # re-run an app's pre-install steps
 scripts/stack.sh uninstall [app] [--purge]
 ```
+
+Networks under `apps/networks/` are managed like any app (`scripts/stack.sh
+install networks`, `status networks`). Stopping one stops its dependent
+containers; restarting one restarts them.
 
 Traefik terminates TLS and routes by path; its dashboard is at `/traefik/`, the
 Glance dashboard at `/`. The tailnet name is detected from Tailscale, not
