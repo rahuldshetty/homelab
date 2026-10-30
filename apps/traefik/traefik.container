@@ -33,6 +33,8 @@ Memory=384m
 Restart=always
 # A cold image pull can exceed systemd's 90s start limit.
 TimeoutStartSec=900
+# Wait for tailscale to startup before running traefik
+ExecStartPre=/bin/sh -c 'until /usr/bin/tailscale status --json 2>/dev/null | /usr/bin/jq -r .BackendState | /usr/bin/grep -qx Running; do sleep 1; done'
 
 [Install]
 WantedBy=default.target
